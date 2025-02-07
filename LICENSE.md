@@ -62,6 +62,6 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 ---
 
 ## Licensing for Original Contributions
-All other content in this repository, not derived from HeCBench, is licensed under the following license:
+All other content in this repository, not derived from HeCBench or HPAS, is licensed under the following license:
 
 [Your Chosen License Here] (e.g., MIT, Apache 2.0, etc.)

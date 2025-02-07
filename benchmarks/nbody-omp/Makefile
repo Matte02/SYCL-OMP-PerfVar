@@ -6,7 +6,7 @@
 CC        = icpx
 OPTIMIZE  = yes
 DEBUG     = no
-DEVICE    = gpu
+DEVICE    = no
 LAUNCHER  =
 
 #===============================================================================
@@ -24,7 +24,7 @@ obj = $(source:.cpp=.o)
 #===============================================================================
 
 # Standard Flags
-CFLAGS := $(EXTRA_CFLAGS) -std=c++14 -Wall 
+CFLAGS := $(EXTRA_CFLAGS) -std=c++17 -Wall 
 
 # Linker Flags
 LDFLAGS = 

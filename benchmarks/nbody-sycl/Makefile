@@ -3,12 +3,12 @@
 #===============================================================================
 
 # Compiler can be set below, or via environment variable
-CC        = clang++
+CC        = icpx
 OPTIMIZE  = yes
 DEBUG     = no
 LAUNCHER  =
 
-GPU       = yes
+GPU       = no
 CUDA      = no
 CUDA_ARCH = sm_70
 HIP       = no
