@@ -5,10 +5,8 @@
 #include <cstdlib>
 #include <unistd.h>
 #include <iomanip>
-
+#include <cmath>
 #include "barrier_sync.h"
-
-std::atomic<bool> flag(false);
 
 int cpuoccupy(double duration, double start_time, bool verbose, int number_of_processes) {
     //Set to realtime task. May not have to change nice value
@@ -25,35 +23,26 @@ int cpuoccupy(double duration, double start_time, bool verbose, int number_of_pr
     auto start = std::chrono::high_resolution_clock::now();
 
     if (verbose) {
-        std::cout << "Starting cpuoccupy for " << duration << " seconds\n";
+        std::cout << "Starting cpuoccupy for " << duration << " nanoseconds\n";
     }
 
-    // Wait until the start time is reached with higher precision
-    //while (std::chrono::high_resolution_clock::now() - start < std::chrono::duration<double>(start_time)) {
-    //    std::this_thread::sleep_for(std::chrono::nanoseconds(1000));  // Adjust for better timing precision
-    //}
-
+    
     struct timespec start_t, rem_t;
-    start_t.tv_sec = 0;
-    start_t.tv_nsec = start_time;
+    start_t.tv_sec = std::floor(start_time / 1000000000) ;
+    start_t.tv_nsec = std::fmod(start_time, 1000000000);
     //May change this to handle small remainders by busy wait?
     while (nanosleep(&start_t, &rem_t) < 0) {
+        // TODO: Make sure these are correct
         start_t.tv_sec = start_t.tv_sec - rem_t.tv_sec;
         start_t.tv_nsec = start_t.tv_nsec - rem_t.tv_nsec;
     }
+        
 
     // Simulate CPU load with higher resolution timing
-    auto end_time = std::chrono::high_resolution_clock::now() + std::chrono::duration<double>(duration);
+    auto end_time = std::chrono::high_resolution_clock::now() + std::chrono::duration<double,std::nano>(duration);
     while (std::chrono::high_resolution_clock::now() < end_time) {
-        auto elapsed = std::chrono::high_resolution_clock::now() - start;
-
-        // Adjust the utilization granularity
-        if (elapsed.count() > start_time) {
-            if (flag) {
-                // Busy wait to simulate CPU load with finer resolution
-                volatile double res = rand() % 1000 + 1;  // Dummy work
-            }
-        }
+        // Busy wait to simulate CPU load with finer resolution
+        volatile double res = rand() % 1000 + 1;  // Dummy work
     }
 
     // Close semaphores
