@@ -9,6 +9,10 @@ EXE = cpuoccupy
 # Default target
 all: $(EXE)
 
+# Debug Target
+debug: CXXFLAGS += -DDEBUG
+debug: $(EXE)
+
 # Build the executable
 $(EXE): $(SRC)
 	$(CXX) $(CXXFLAGS) -o $(EXE) $(SRC)
@@ -16,6 +20,3 @@ $(EXE): $(SRC)
 # Clean up build files
 clean:
 	rm -f $(EXE)
-
-# Force rebuild
-rebuild: clean all

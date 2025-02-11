@@ -3,12 +3,14 @@ import sys
 import os
 import argparse
 
-def build_code(rebuild=False):
+def build_code(rebuild=False, debug=False):
     if rebuild:
         print("Forcing a rebuild...")
-        subprocess.run(['make', 'rebuild'], check=True)
+        subprocess.run(['make', 'clean'], check=True)
+    if debug:
+        subprocess.run(['make', 'debug'], check=True)
     else:
-        subprocess.run(['make'], check=True)
+        subprocess.run(['make', 'all'], check=True)
 
 def run_cpuoccupy(core_id, duration=10.0, start_time=0.0, verbose=False, processes=1):
     """
@@ -20,7 +22,7 @@ def run_cpuoccupy(core_id, duration=10.0, start_time=0.0, verbose=False, process
         sys.exit(1)
 
     # Construct the command with taskset to pin the process to the specified core
-    command = f"taskset -c {core_id} ./cpuoccupy {duration} {start_time} {1 if verbose else 0} {processes}"
+    command = f"taskset -c {core_id} ./cpuoccupy {duration} {start_time} {processes}"
 
     # Execute the command
     try:
@@ -41,10 +43,10 @@ def main():
 
     args = parser.parse_args()
 
-    build_code(args.rebuild)
+    build_code(args.rebuild, args.verbose)
 
     # Run the cpuoccupy with provided parameters
-    run_cpuoccupy(args.core, args.duration, args.start_time, args.verbose, args.processes)
+    run_cpuoccupy(args.core, args.duration, args.start_time, args.processes)
 
 if __name__ == "__main__":
     main()

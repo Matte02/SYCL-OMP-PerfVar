@@ -8,7 +8,7 @@
 #include <cmath>
 #include "barrier_sync.h"
 
-int cpuoccupy(double duration, double start_time, bool verbose, int number_of_processes) {
+int cpuoccupy(double duration, double start_time, int number_of_processes) {
     //Set to realtime task. May not have to change nice value
     nice(-1);
     struct sched_param sp = { .sched_priority = 50 };
@@ -22,9 +22,9 @@ int cpuoccupy(double duration, double start_time, bool verbose, int number_of_pr
     wait_for_barrier(number_of_processes);
     auto start = std::chrono::high_resolution_clock::now();
 
-    if (verbose) {
-        std::cout << "Starting cpuoccupy for " << duration << " nanoseconds\n";
-    }
+    #ifdef DEBUG
+    std::cout << "Starting cpuoccupy for " << duration << " nanoseconds\n";
+    #endif
 
     
     struct timespec start_t, rem_t;
@@ -47,22 +47,22 @@ int cpuoccupy(double duration, double start_time, bool verbose, int number_of_pr
 
     // Close semaphores
     cleanup_semaphores();
+    #ifdef DEBUG
     std::cout << "Exiting cpuoccupy\n";
+    #endif
     return EXIT_SUCCESS;
 }
 
 int main(int argc, char* argv[]) {
     double duration = 10.0;  // Default duration
     double start_time = 0.0;  // Default start time
-    bool verbose = false;  // Default verbosity
     int number_of_processes = 1;
 
     // Parse arguments
     if (argc > 1) duration = std::atof(argv[1]);
     if (argc > 2) start_time = std::atof(argv[2]);
-    if (argc > 3) verbose = std::atoi(argv[3]);
-    if (argc > 4) number_of_processes = std::atoi(argv[4]);
+    if (argc > 3) number_of_processes = std::atoi(argv[3]);
 
     // Start the CPU occupy function with higher resolution
-    return cpuoccupy(duration, start_time, verbose, number_of_processes);
+    return cpuoccupy(duration, start_time, number_of_processes);
 }
