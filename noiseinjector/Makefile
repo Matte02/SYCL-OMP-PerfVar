@@ -1,6 +1,6 @@
 # Define the compiler
 CXX = g++
-CXXFLAGS = -std=c++20 -O3 -Wall -lpthread -lrt
+CXXFLAGS = -std=c++20 -O3 -Wall -lpthread -lrt -Iinclude
 
 # Source and executable
 SRC = cpuoccupy.cpp barrier_sync.cpp
