@@ -112,7 +112,7 @@ void GSimulation::Start() {
       TimeInterval ts0;
 
       // computes acceleration of all particles
-      #pragma omp target teams distribute parallel for thread_limit(256)
+      #pragma omp target teams distribute parallel for simd thread_limit(256)
       for (int i = 0; i < n; i++) {
         auto pi = p[i];
         RealType acc0 = pi.acc[0];
@@ -144,7 +144,7 @@ void GSimulation::Start() {
       }
 
       // Second kernel updates the velocity and position for all particles
-      #pragma omp target teams distribute parallel for thread_limit(256)
+      #pragma omp target teams distribute parallel for simd thread_limit(256)
       for (int i = 0; i < n; i++) {
         auto pi = p[i];
         pi.vel[0] += pi.acc[0] * dt;  // 2flops
