@@ -1,4 +1,5 @@
 // barrier_sync.cpp
+#include "barrier_sync.h"
 #include <semaphore.h>
 #include <fcntl.h>    // For O_CREAT, O_EXCL
 #include <sys/stat.h> // For mode constants
@@ -30,7 +31,7 @@ void wait_for_barrier(int total_processes) {
     int ready_count;
     do {
         sem_getvalue(ready, &ready_count);
-    } while (ready_count < total_processes); // Change "2" to total_processes dynamically when needed
+    } while (ready_count < total_processes);
 
     // Signal start only once all processes are ready
     sem_post(start);

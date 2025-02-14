@@ -8,6 +8,7 @@ OPTIMIZE  = yes
 DEBUG     = no
 DEVICE    = no
 LAUNCHER  =
+INJECT_NOISE = no
 
 #===============================================================================
 # Program name & source code list
@@ -24,10 +25,10 @@ obj = $(source:.cpp=.o)
 #===============================================================================
 
 # Standard Flags
-CFLAGS := $(EXTRA_CFLAGS) -std=c++17 -Wall 
+CFLAGS := $(EXTRA_CFLAGS) -std=c++17 -Wall -I../../common
 
 # Linker Flags
-LDFLAGS = 
+LDFLAGS = -L../../common -lcommon
 
 # Debug Flags
 ifeq ($(DEBUG),yes)
@@ -37,13 +38,18 @@ endif
 
 # Optimization Flags
 ifeq ($(OPTIMIZE),yes)
-  CFLAGS += -O3 -xCORE-AVX2
+  CFLAGS += -O3 -march=native #-xCORE-AVX2 
+  # TODO Fix if condition for native vs xCORE-AVX2
 endif
 
 ifeq ($(DEVICE),gpu)
   CFLAGS +=-fiopenmp -fopenmp-targets=spir64 -D__STRICT_ANSI__
 else
   CFLAGS +=-qopenmp
+endif
+
+ifeq ($(INJECT_NOISE),yes)
+  CFLAGS += -DNOISE
 endif
 #===============================================================================
 # Targets to Build
@@ -59,4 +65,4 @@ clean:
 	rm -rf $(program) $(obj)
 
 run: $(program)
-	$(LAUNCHER) ./$(program) 16000 10
+	$(LAUNCHER) ./$(program) 16000 10 0

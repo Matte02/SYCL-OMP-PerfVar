@@ -3,16 +3,21 @@ import sys
 import os
 import argparse
 
+NOISE_INJECTOR_FOLDER_PATH = "../noiseinjector"
+
 def build_code(rebuild=False, debug=False):
+    # Change the current working directory to the noise injector folder
+    os.chdir(NOISE_INJECTOR_FOLDER_PATH)
+    
     if rebuild:
         print("Forcing a rebuild...")
-        subprocess.run(['make', 'clean'], check=True)
+        subprocess.run( ['make', 'clean'], check=True)
     if debug:
         subprocess.run(['make', 'debug'], check=True)
     else:
         subprocess.run(['make', 'all'], check=True)
 
-def run_cpuoccupy_parallel(json_file, verbose=False):
+def run_cpuoccupy_parallel(json_file, verbose=False, no_benchmark=True):
     """
     Run cpuoccupy processes in parallel, one for each core defined in the JSON file.
     """
@@ -51,11 +56,12 @@ def run_cpuoccupy_parallel(json_file, verbose=False):
             sys.exit(1)
 
     processes_list = []
+    num_processes = len(core_ids) if no_benchmark else len(core_ids) + 1
     for core_id in core_ids:
         # Construct the command for taskset
         # TODO: Once we start running this with benchmarks, we need to increase the number of process to wait for by 1. len(core_ids) + 1
         # VERY IMPORTANT IF WE HAVE "wait_for_barrier()" in benchmarks. 
-        command = f"taskset -c {core_id} ./cpuoccupy {json_file} {core_id} {len(core_ids)}"
+        command = f"taskset -c {core_id} ./{NOISE_INJECTOR_FOLDER_PATH}/cpuoccupy {json_file} {core_id} {num_processes}"
 
         if verbose:
             print(f"Starting: {command}")
@@ -80,6 +86,7 @@ def main():
     parser.add_argument('--verbose', action='store_true', help="Enable verbose output")
     parser.add_argument('--rebuild', action='store_true', help="Force rebuild of the project")
     parser.add_argument('--debug', action='store_true', help="Build in debug mode")
+    parser.add_argument('--no-benchmark', action='store_true', help="Wether to wait for benchmarks sync signal or not. This should be enabled if running without benchmark.")
 
     args = parser.parse_args()
 
@@ -87,7 +94,7 @@ def main():
     build_code(args.rebuild, args.debug)
 
     # Step 2: Run all cpuoccupy processes in parallel
-    run_cpuoccupy_parallel(args.json_file, args.verbose)
+    run_cpuoccupy_parallel(args.json_file, args.verbose, args.no_benchmark)
 
 if __name__ == "__main__":
     main()

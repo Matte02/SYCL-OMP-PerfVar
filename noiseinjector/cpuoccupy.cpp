@@ -8,7 +8,7 @@
 
 #include "nlohmann/json.hpp"
 
-#include "barrier_sync.h"
+#include <barrier_sync.h>
 
 using json = nlohmann::json;
 
