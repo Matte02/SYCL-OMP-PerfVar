@@ -1,0 +1,16 @@
+12-02-2025
+
+Meeting notes
+
+We are done optimizing benchmarks for now, since we see about an equal performance between SYCL and OpenMP.
+We will have to select one of the babelstream benchmarks
+We might have some bias, since we have optmized OpenMP but not SYCL. We Believe this should be fine, as long as we are transparant with what we have done and why in the thesis.
+We will start looking into the performance variablily of the benchmarks, since we have currently only focued on performance.
+From the VTune data, we see that the selection of benchmarks seems resonable (Nbody is computebound, Babelsteram is memorybound and miniFE seems to be a mix between the two).
+
+What we will do this week:
+Fix a sharable folder to share Pictures, graphs etc
+Performance variablily data gathering
+Continue working on noise injection
+Parse the OSNoise data, to use for noise injection
+Start Writing the halftime report (Background, possibly parts of the introduction).
