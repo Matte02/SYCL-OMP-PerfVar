@@ -1,3 +1,4 @@
+#!/bin/bash 
 #System name
 SYSTEM="Chris"
 #Path to osnoise tracer
@@ -5,7 +6,7 @@ OSNOISEPATH="/sys/kernel/tracing"
 #Path to folder where bench folder are located
 CURPATH=$PWD
 #Number of times to execute a bench
-ITER=1
+ITER=100
 #Trace disabled(!1)/enabled(1)
 TRACE=1
 
@@ -19,12 +20,14 @@ NBODY_PARAMS="10000 12000"
 BABELSTREAM_PARAMS="-s 67108864"
 MINIFE_PARAMS="-nx 256 -ny 256 -nz 128"
 
-benches=("nbody" "babelstream" "miniFE")
-benchparameters=("$NBODY_PARAMS" "$BABELSTREAM_PARAMS" "$MINIFE_PARAMS")
+benches=("miniFE" "babelstream" "nbody")
+#benches=("nbody" "babelstream" "miniFE")
+benchparameters=("$MINIFE_PARAMS" "$BABELSTREAM_PARAMS" "$NBODY_PARAMS")
 #Path extension to makefile and binary location if necessary
-makefilepath=("." "." "src")
+makefilepath=("src" "." ".")
 #Binary name
-binname=("main" "main" "miniFE.x")
+#binname=("main" "main" "miniFE.x")
+binname=("miniFE.x" "main" "main")
 frameworks=("omp" "sycl")
 
 source /opt/intel/oneapi/setvars.sh 
@@ -32,6 +35,7 @@ source /opt/intel/oneapi/setvars.sh
 #Setup tracer
 echo osnoise > "$OSNOISEPATH/current_tracer"
 echo NO_OSNOISE_WORKLOAD > $OSNOISEPATH/osnoise/options
+echo mono_raw > $OSNOISEPATH/trace_clock
 echo > "$OSNOISEPATH/set_event"
 echo osnoise > "$OSNOISEPATH/set_event"
 
@@ -47,7 +51,7 @@ for bench in ${benches[@]}; do
         params=${benchparameters[$benchidx]}
 
         make clean
-        make CC=icpx DEVICE=cpu GPU=no #DEBUG=yes
+        make CC=icpx CXX=icpx DEVICE=cpu GPU=no #DEBUG=yes
 
         logpath="$CURPATH/logs/benchrun-$benchcount/$curbench"
         mkdir -p $logpath
@@ -56,6 +60,7 @@ for bench in ${benches[@]}; do
 
         for ((i=1; i<=$ITER; i++))
         do
+            echo $i
             TRACECOUNT="$(ls -1 $logpath | grep -E "$curbench.*$SYSTEM.*benchout" | wc -l)"
             touch "$logpath/$curbench-$TRACECOUNT-$SYSTEM.benchout"
 

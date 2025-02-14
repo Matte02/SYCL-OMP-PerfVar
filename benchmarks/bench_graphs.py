@@ -48,9 +48,17 @@ def main():
         axs.set_ylabel('Execution time (normalized)')
         axs.set_xlabel(bench)
         boxplot = axs.boxplot([normexectimes]) 
-        #boxplot.set(xticklabels=[])
         plt.xticks([])
         plt.savefig(benchpath+'.png')
+
+        fig, axs = plt.subplots()
+
+        axs.set_ylabel('Execution time (s)')
+        axs.set_xlabel(bench)
+        boxplot = axs.boxplot([exectimes]) 
+        plt.xticks([])
+        plt.savefig(benchpath+'-sec.png')
+
         
     else:
         print("No benchpath specified")
