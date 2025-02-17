@@ -1,18 +1,22 @@
 #!/bin/bash
 
 # Configuration
-SYSTEM="matte"  # System name
+SYSTEM="Chris"  # System name
 OSNOISEPATH="/sys/kernel/tracing"  # Path to osnoise tracer
 CURPATH="$PWD"  # Current working directory
-ITER=1  # Number of iterations per benchmark
+ITER=1000  # Number of iterations per benchmark
 TRACE=1  # Enable/disable tracing (1 = enabled, 0 = disabled)
 INJECT_NOISE_VALUE="no"  # Enable/disable noise injection (yes/no)
 
 
 # Benchmark parameters (default values)
-NBODY_PARAMS="10000 10000"
-BABELSTREAM_PARAMS="-s 67108864"
-MINIFE_PARAMS="-nx 256 -ny 256 -nz 128"
+#NBODY_PARAMS="10000 10000"
+NBODY_PARAMS="10000 100"
+#MINIFE_PARAMS="-nx 256 -ny 256 -nz 128"
+BABELSTREAM_PARAMS="-s 33554432 -n 10"
+#BABELSTREAM_PARAMS="-s 33554432"
+MINIFE_PARAMS="-nx 128 -ny 128 -nz 128"
+
 
 # Noise injection configuration
 if [ "$INJECT_NOISE_VALUE" = "yes" ]; then
@@ -42,10 +46,11 @@ echo > "$OSNOISEPATH/set_event"
 echo "osnoise" > "$OSNOISEPATH/set_event"
 echo "mono_raw" > "$OSNOISEPATH/trace_clock"
 
+# TODO: Make the common makefile here
 
 # Path to benchmarks
 benchpath="$CURPATH/../benchmarks"
-benchcount=$(ls -1 "$benchpath/logs" | grep -E "benchrun-.*" | wc -l)
+benchtime=$(date '+%d-%m-%Y-%H:%M:%S')
 
 #Loop thorugh all benches, versions, and iterations
 benchidx=-1
@@ -63,13 +68,13 @@ for bench in ${benches[@]}; do
         params=${benchparameters[$benchidx]}
 
         # Create log directory
-        logpath="$benchpath/logs/benchrun-$benchcount/$curbench"
+        logpath="$benchpath/logs/benchrun-$benchtime/$curbench"
         mkdir -p "$logpath"
         echo "Log path: $logpath"
         echo "Start: $curbench"
 
         for ((i=1; i<=$ITER; i++)) do
-            TRACECOUNT="$(ls -1 $logpath | grep -E "$curbench.*$SYSTEM.*benchout" | wc -l)"
+            TRACECOUNT=$i
             touch "$logpath/$curbench-$TRACECOUNT-$SYSTEM.benchout"
 
             # Enable tracing if specified
@@ -77,7 +82,7 @@ for bench in ${benches[@]}; do
                 touch "$logpath/$curbench-$TRACECOUNT-$SYSTEM.trace"
                 echo > "$OSNOISEPATH/trace"
                 echo 1 > "$OSNOISEPATH/tracing_on"
-                sleep 2  # Allow tracer warmup
+                sleep 1  # Allow tracer warmup
             fi
 
             if [ "$INJECT_NOISE_VALUE" = "yes" ]; then
@@ -88,6 +93,7 @@ for bench in ${benches[@]}; do
                 cd "$benchpath/$curbench/${makefilepath[$benchidx]}" || exit 1
             fi
 
+            echo $i
             # Run the benchmark
             binary="${binname[$benchidx]}"
             OUTPUT=$(TIMEFORMAT="%R"; { time ./"$binary" $params; } 2>&1)
@@ -100,7 +106,7 @@ for bench in ${benches[@]}; do
             # Disable tracing if specified
             if [ $TRACE -eq 1 ]; then
                 echo 0 > "$OSNOISEPATH/tracing_on"
-                sleep 2
+                sleep 1
                 cat "$OSNOISEPATH/trace" > "$logpath/$curbench-$TRACECOUNT-$SYSTEM.trace"
             fi
 
