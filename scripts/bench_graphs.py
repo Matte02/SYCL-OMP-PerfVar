@@ -13,20 +13,28 @@ def main():
         return
     
     benches = os.listdir(sys.argv[1])
+    print(benches)
+
     for bench in benches:
-        if not os.path.isdir(bench):
+        print(bench)
+        if not os.path.isdir(os.path.normpath(sys.argv[1])+'/'+os.path.normpath(bench)):
+            print("cont")
             continue
         
+        print(bench)
         benchpath=os.path.normpath(sys.argv[1])+'/'+os.path.normpath(bench)
         files = []
+        print(benchpath)
 
         for (dirpath, dirnames, filenames) in walk(benchpath):
             for file in filenames:
                 if file.endswith(".benchout"):
                     files.append(file)
             break 
-
+        
+        print(files)
         if len(files)==0:
+            print("break")
             break
 
         exectimes = []
@@ -58,10 +66,6 @@ def main():
         boxplot = axs.boxplot([exectimes]) 
         plt.xticks([])
         plt.savefig(benchpath+'-sec.png')
-
-        
-    else:
-        print("No benchpath specified")
 
 if __name__ == "__main__":
     main()

@@ -43,13 +43,14 @@ int main(int argc, char** argv) {
   struct timespec ts_end;
   clock_gettime(CLOCK_MONOTONIC_RAW, &ts_end); // Change to RAW?
 
-  // Calculate duration
+  // Calculate duration 
   struct timespec duration;
   duration.tv_sec = ts_end.tv_sec - ts_start.tv_sec;
   duration.tv_nsec = ts_end.tv_nsec - ts_start.tv_nsec;
 
   // Normalize the nanoseconds field
   // Move to common folder? And make it a utils function?
+  // TODO: Cannot handle sub 0.1s durations. Results in faulty duration eg 0.04 becomes 0.4
   if (duration.tv_nsec < 0) {
       duration.tv_sec -= 1;
       duration.tv_nsec += 1'000'000'000;
