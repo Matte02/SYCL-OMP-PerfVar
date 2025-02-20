@@ -17,7 +17,7 @@ def build_code(rebuild=False, debug=False):
     else:
         subprocess.run(['make', 'all'], check=True)
 
-def run_cpuoccupy_parallel(json_file, verbose=False, no_benchmark=True):
+def run_cpuoccupy_parallel(json_file, verbose=False, no_benchmark=False):
     """
     Run cpuoccupy processes in parallel, one for each core defined in the JSON file.
     """
@@ -45,6 +45,7 @@ def run_cpuoccupy_parallel(json_file, verbose=False, no_benchmark=True):
 
     # Check if the number of cores in the JSON exceeds available cores
     num_cores_in_json = len(core_ids)
+    
     if num_cores_in_json > available_cores:
         print(f"Error: The JSON file specifies {num_cores_in_json} cores, but only {available_cores} cores are available on this system.")
         sys.exit(1)
@@ -57,6 +58,7 @@ def run_cpuoccupy_parallel(json_file, verbose=False, no_benchmark=True):
 
     processes_list = []
     num_processes = len(core_ids) if no_benchmark else len(core_ids) + 1
+    print(f"Num of processes (should be number of cores({num_cores_in_json}) + 1): {num_processes}")
     for core_id in core_ids:
         # Construct the command for taskset
         # TODO: Once we start running this with benchmarks, we need to increase the number of process to wait for by 1. len(core_ids) + 1

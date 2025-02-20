@@ -58,9 +58,10 @@ int main(int argc, char** argv) {
 
 
   // Wait with prints untill after the benchmark is done. 
-  std::cout << "Start time: "<< ts_start.tv_sec << "." << ts_start.tv_nsec << std::endl;
-  std::cout << "End time: "<< ts_end.tv_sec << "." << ts_end.tv_nsec << std::endl;
-  std::cout << "Duration: " << duration.tv_sec << "." << duration.tv_nsec << std::endl;
+  std::cout << "Start time: " << ts_start.tv_sec << "." << std::setw(9) << std::setfill('0') << ts_start.tv_nsec << std::endl;
+  std::cout << "End time: " << ts_end.tv_sec << "." << std::setw(9) << std::setfill('0') << ts_end.tv_nsec << std::endl;
+  std::cout << "Duration: " << duration.tv_sec << "." << std::setw(9) << std::setfill('0') << duration.tv_nsec << std::endl;
+
 
   #ifdef NOISE
   cleanup_semaphores();
