@@ -32,7 +32,7 @@ int main(int argc, char** argv) {
   if (argc > 1) {
     n = std::atoi(argv[1]);
     sim.SetNumberOfParticles(n);
-    if (argc == 3) {
+    if (argc >= 3) {
       nstep = std::atoi(argv[2]);
       sim.SetNumberOfSteps(nstep);
     }

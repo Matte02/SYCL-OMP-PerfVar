@@ -9,6 +9,7 @@
 
 #include <chrono>
 #include <iostream>
+#include <iomanip>  // For std::setw and std::setfill
 
 #include "barrier_sync.h"
 
@@ -37,7 +38,7 @@ int main(int argc, char** argv) {
   if (argc > 1) {
     n = std::atoi(argv[1]);
     sim.SetNumberOfParticles(n);
-    if (argc == 3) {
+    if (argc >= 3) {
       nstep = std::atoi(argv[2]);
       sim.SetNumberOfSteps(nstep);
     }
@@ -61,9 +62,9 @@ int main(int argc, char** argv) {
 
 
   // Wait with prints untill after the benchmark is done. 
-  std::cout << "Start time: "<< ts_start.tv_sec << "." << ts_start.tv_nsec << std::endl;
-  std::cout << "End time: "<< ts_end.tv_sec << "." << ts_end.tv_nsec << std::endl;
-  std::cout << "Duration: " << duration.tv_sec << "." << duration.tv_nsec << std::endl;
+  std::cout << "Start time: " << ts_start.tv_sec << "." << std::setw(9) << std::setfill('0') << ts_start.tv_nsec << std::endl;
+  std::cout << "End time: " << ts_end.tv_sec << "." << std::setw(9) << std::setfill('0') << ts_end.tv_nsec << std::endl;
+  std::cout << "Duration: " << duration.tv_sec << "." << std::setw(9) << std::setfill('0') << duration.tv_nsec << std::endl;
 
   #ifdef NOISE
   cleanup_semaphores();
