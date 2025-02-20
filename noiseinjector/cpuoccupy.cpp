@@ -3,8 +3,9 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
-
 #include <unistd.h>
+#include <linux/prctl.h>
+#include <sys/prctl.h>
 
 #include "nlohmann/json.hpp"
 
@@ -13,11 +14,17 @@
 using json = nlohmann::json;
 
 struct Noise {
-    double start_time;
-    double duration;
+    signed long long start_time;
+    signed long long duration;
 };
 
 int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes) {
+    //Set seed
+    int seed = rand();
+    //Remove timer slack. Not tested if it actually helps.
+    int err = prctl(PR_SET_TIMERSLACK, 0);
+    //std::cout << "Timerslack succeeded: " << err <<std::endl;
+
     //Set to realtime task. May not have to change nice value
     nice(-1);
     struct sched_param sp = { .sched_priority = 50 };
@@ -35,30 +42,29 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes) {
     // Record the program's absolute start time
     auto program_start_time = std::chrono::high_resolution_clock::now();
 
-
     for (const auto& noise : noises) {
         // Calculate relative wait time for this noise
         auto current_time = std::chrono::high_resolution_clock::now();
-        auto wait_time = std::chrono::duration<double, std::nano>(noise.start_time) -
-                         std::chrono::duration_cast<std::chrono::duration<double, std::nano>>(current_time - program_start_time);
+        auto wait_time = std::chrono::duration<signed long long, std::nano>(noise.start_time) -
+                         std::chrono::duration<signed long long, std::nano>(current_time - program_start_time);
 
         // Sleep until the start time for this noise
         if (wait_time.count() > 0) {
             struct timespec start_t, rem_t;
             start_t.tv_sec = std::floor(wait_time.count() / 1e9);
             start_t.tv_nsec = std::fmod(wait_time.count(), 1e9);
-
-            while (nanosleep(&start_t, &rem_t) < 0) {
+            while (nanosleep(&start_t, &rem_t) != 0) {
                 start_t.tv_sec = rem_t.tv_sec;
                 start_t.tv_nsec = rem_t.tv_nsec;
             }
         }
 
         // Simulate CPU load for this noise duration
-        auto end_time = std::chrono::high_resolution_clock::now() + 
-                        std::chrono::duration<double, std::nano>(noise.duration);
+        auto end_time = std::chrono::duration<signed long long, std::nano>(noise.start_time) + 
+                        std::chrono::duration<signed long long, std::nano>(noise.duration) + program_start_time; 
+
         while (std::chrono::high_resolution_clock::now() < end_time) {
-            volatile double res = rand() % 1000 + 1; // Dummy work
+            volatile double res = seed % 1000 + 1; // Dummy work
         }
     }
 
@@ -84,7 +90,7 @@ int parseJSON(std::vector<Noise>& noise_schedule, const std::string& json_file, 
 
     if (config.contains(core_id)) {
         for (const auto& entry : config[core_id]) {
-            Noise noise = { entry["start_time"].get<double>(), entry["duration"].get<double>() };
+            Noise noise = {entry[0].get<signed long long>(), entry[1].get<signed long long>()};
             noise_schedule.push_back(noise);
         }
     } else {
