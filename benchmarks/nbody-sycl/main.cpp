@@ -8,6 +8,7 @@
 #include <iostream>
 #include <chrono>
 #include "barrier_sync.h"
+#include "time_utils.hpp"
 
 int main(int argc, char** argv) {
   #ifdef NOISE
@@ -21,8 +22,7 @@ int main(int argc, char** argv) {
     return 1;
   }
   #endif
-  struct timespec ts_start;
-  clock_gettime(CLOCK_MONOTONIC_RAW, &ts_start);
+  Timer total_timer;
 
   int n;      // number of particles
   int nstep;  // number ot integration steps
@@ -40,28 +40,8 @@ int main(int argc, char** argv) {
 
   sim.Start();
 
-  struct timespec ts_end;
-  clock_gettime(CLOCK_MONOTONIC_RAW, &ts_end); // Change to RAW?
-
-  // Calculate duration 
-  struct timespec duration;
-  duration.tv_sec = ts_end.tv_sec - ts_start.tv_sec;
-  duration.tv_nsec = ts_end.tv_nsec - ts_start.tv_nsec;
-
-  // Normalize the nanoseconds field
-  // Move to common folder? And make it a utils function?
-  // TODO: Cannot handle sub 0.1s durations. Results in faulty duration eg 0.04 becomes 0.4
-  if (duration.tv_nsec < 0) {
-      duration.tv_sec -= 1;
-      duration.tv_nsec += 1'000'000'000;
-  }
-
-
-  // Wait with prints untill after the benchmark is done. 
-  std::cout << "Start time: " << ts_start.tv_sec << "." << std::setw(9) << std::setfill('0') << ts_start.tv_nsec << std::endl;
-  std::cout << "End time: " << ts_end.tv_sec << "." << std::setw(9) << std::setfill('0') << ts_end.tv_nsec << std::endl;
-  std::cout << "Duration: " << duration.tv_sec << "." << std::setw(9) << std::setfill('0') << duration.tv_nsec << std::endl;
-
+  total_timer.stop();
+  total_timer.print("Total Duration");
 
   #ifdef NOISE
   cleanup_semaphores();

@@ -9,12 +9,12 @@ struct Timer {
     struct timespec start_time, end_time;
 
     Timer() {
-        clock_gettime(CLOCK_MONOTONIC, &start_time);
+        clock_gettime(CLOCK_MONOTONIC_RAW, &start_time);
     }
 
     // Stops the timer and records the end time
     void stop() {
-        clock_gettime(CLOCK_MONOTONIC, &end_time);
+        clock_gettime(CLOCK_MONOTONIC_RAW, &end_time);
     }
 
     // Returns elapsed time in seconds with nanosecond precision
