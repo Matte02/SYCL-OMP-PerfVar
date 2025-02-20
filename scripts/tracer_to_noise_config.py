@@ -118,7 +118,7 @@ def main():
             print(nextduration)
             print(noise)
             #Make the start of the workload be time instant 0
-            noise = noise[0]-syncstartdiff, noise[1]
+            noise = (noise[0]-syncstartdiff, noise[1])
             #Remove noises started before starting point
             if noise[0] < 0: 
                 continue
@@ -127,11 +127,10 @@ def main():
                 nextstart = noise[0]
                 nextduration = noise[1]
             else: 
-                end = nextstart + noise[1]
                 #Check if starttime is during an execution of another noise. If yes, combine.
-                if end >= noise[0]:
+                if nextstart+nextduration >= noise[0]:
                     print("Combine")
-                    nextduration = nextduration + noise[1]
+                    nextduration += noise[1]
                 else:
                     combinednoises.append((nextstart, nextduration))
                     nextstart = noise[0]
@@ -141,10 +140,11 @@ def main():
         noisedict[cpu] = combinednoises 
 
     #Write output to json
+
+    
     json_string = json.dumps(noisedict, indent=4) 
     with open("noise_config.json", "w") as f:
         f.write(json_string) 
-
 
 def sort_task_start(task):
     return (task[0], sorted(task[1], key=lambda tup: tup[0]))
