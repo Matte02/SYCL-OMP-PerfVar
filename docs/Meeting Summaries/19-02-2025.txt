@@ -1,0 +1,13 @@
+* Runtime is an adequate metric when overheads are included but it might be interesting to simultaneously measure kernel execution.
+
+* MiniFE seems to be quite strange in the implementation for sycl. We'll try to discard the setup phase handled with openMP for both versions in our measurements.
+
+* Focus on evaluating the accuracy of our noise injector until next meeting. Afterwards, mitigation strategy evaluation can begin.
+
+* Meeting on March 5th moved to remote meeting on March 4th 11am
+
+
+
+
+
+
