@@ -26,6 +26,18 @@ static void handler(int sig, siginfo_t *si, void *uc) {
 }
 #endif
 
+#ifdef BARRIER_TIMEOUT
+#define TIMEOUT_SECONDS 10
+bool passed_barrier = false;
+static void timeout_handler(int sig, siginfo_t *si, void *uc) {
+    auto caught_signal = sig;
+    if (!passed_barrier) {
+        cleanup_semaphores();
+        exit(EXIT_FAILURE);
+    }  
+}
+#endif
+
 int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes) {
     //Set seed
     int seed = rand();
@@ -65,16 +77,58 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes) {
     sev.sigev_signo = SIGRTMIN;
     sev.sigev_value.sival_ptr = &timerid;
     //Test accuracy with different clocks?
-    if (timer_create(CLOCK_MONOTONIC_RAW, &sev, &timerid) == -1) {
+    if (timer_create(CLOCK_MONOTONIC, &sev, &timerid) == -1) {
         perror("timer_create");
         exit(EXIT_FAILURE);
     }
     #endif
 
     init_semaphores();
+
+    #ifdef BARRIER_TIMEOUT
+    timer_t timeoutid;
+    struct sigevent sevt;
+    struct itimerspec itst;
+    struct sigaction sat;
+
+    /* Establish handler for timeout signal */
+    sat.sa_flags = SA_SIGINFO;
+    sat.sa_sigaction = timeout_handler;
+    sigemptyset(&sat.sa_mask);
+    if (sigaction(SIGRTMAX, &sat, NULL) == -1) {
+        perror("sigaction");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Create the timer */
+    sevt.sigev_notify = SIGEV_SIGNAL;
+    sevt.sigev_signo = SIGRTMAX;
+    sevt.sigev_value.sival_ptr = &timeoutid;
+    if (timer_create(CLOCK_MONOTONIC, &sevt, &timeoutid) == -1) {
+        perror("timeout_create");
+        exit(EXIT_FAILURE);
+    }
+    /* Start the timer */
+    itst.it_value.tv_sec = TIMEOUT_SECONDS;
+    itst.it_value.tv_nsec = 0;
+    itst.it_interval.tv_sec = itst.it_value.tv_sec;
+    itst.it_interval.tv_nsec = itst.it_value.tv_nsec;
+    if (timer_settime(timeoutid, 0, &itst, NULL) == -1) {
+        perror("timer_settime");
+        exit(EXIT_FAILURE);
+    }
+    #endif
+
     // Sync up all processes to start at the same time.
     wait_for_barrier(number_of_processes);
 
+    #ifdef BARRIER_TIMEOUT
+    passed_barrier = true;
+    if (timer_delete(timeoutid) == -1) {
+        perror("timer_delete");
+        exit(EXIT_FAILURE);
+    }
+    #endif
 
     // Record the program's absolute start time
     auto program_start_time = std::chrono::high_resolution_clock::now();
@@ -86,7 +140,6 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes) {
     for (const auto& noise : noises) {
         i++;
         if (prev>=noise.start_time){
-            perror("unsorted noise_config");
             exit(EXIT_FAILURE);
         }
         // Calculate relative wait time for this noise
