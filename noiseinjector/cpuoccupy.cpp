@@ -84,8 +84,6 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes) {
     struct timespec start_t, rem_t;
 
     for (const auto& noise : noises) {
-        //std::cout << noises.size() <<std::endl;
-        //std::cout << i <<std::endl;
         i++;
         if (prev>=noise.start_time){
             perror("unsorted noise_config");
@@ -98,7 +96,7 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes) {
 
         // Sleep until the start time for this noise
         if (wait_time.count() > 0) {
-            
+
             #ifdef USE_TIMER
             /* Start the timer */
             its.it_value.tv_sec = std::floor(wait_time.count() / 1e9);
@@ -141,15 +139,14 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes) {
         }
         prev = noise.start_time;
     }
-    std::cout << noises.size() <<std::endl;
-    std::cout << i <<std::endl;
-    std::cout << total_delay <<std::endl;
     // Close semaphores
     cleanup_semaphores();
     #ifdef DEBUG
     std::cout << "Exiting cpuoccupy\n";
+    std::cout << noises.size() <<std::endl;
+    std::cout << i <<std::endl;
+    std::cout << total_delay <<std::endl;
     #endif
-    std::cout << "Exiting cpuoccupy\n";
     return EXIT_SUCCESS;
 }
 
