@@ -6,6 +6,8 @@
 #include <unistd.h>
 #include <linux/prctl.h>
 #include <sys/prctl.h>
+#include <time.h>
+#include <signal.h>
 
 #include "nlohmann/json.hpp"
 
@@ -18,21 +20,56 @@ struct Noise {
     signed long long duration;
 };
 
+#ifdef USE_TIMER
+static void handler(int sig, siginfo_t *si, void *uc) {
+    auto caught_signal = sig; 
+}
+#endif
+
 int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes) {
     //Set seed
     int seed = rand();
     //Remove timer slack. Not tested if it actually helps.
-    int err = prctl(PR_SET_TIMERSLACK, 0);
-    //std::cout << "Timerslack succeeded: " << err <<std::endl;
+    int err = prctl(PR_SET_TIMERSLACK, 1L);
+    if (err == -1) {
+        perror("set_timeslack");
+        return EXIT_FAILURE;
+    }
 
     //Set to realtime task. May not have to change nice value
-    nice(-1);
+    //auto ok = nice(-1);
     struct sched_param sp = { .sched_priority = 50 };
     int ret = sched_setscheduler(0, SCHED_FIFO, &sp);
     if (ret == -1) {
         perror("sched_setscheduler");
         return EXIT_FAILURE;
     }
+
+    #ifdef USE_TIMER
+    timer_t timerid;
+    struct sigevent sev;
+    struct itimerspec its;
+    struct sigaction sa;
+
+    /* Establish handler for timer signal */
+    sa.sa_flags = SA_SIGINFO;
+    sa.sa_sigaction = handler;
+    sigemptyset(&sa.sa_mask);
+    if (sigaction(SIGRTMIN, &sa, NULL) == -1) {
+        perror("sigaction");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Create the timer */
+    sev.sigev_notify = SIGEV_SIGNAL;
+    sev.sigev_signo = SIGRTMIN;
+    sev.sigev_value.sival_ptr = &timerid;
+    //Test accuracy with different clocks?
+    if (timer_create(CLOCK_MONOTONIC_RAW, &sev, &timerid) == -1) {
+        perror("timer_create");
+        exit(EXIT_FAILURE);
+    }
+    #endif
 
     init_semaphores();
     // Sync up all processes to start at the same time.
@@ -41,40 +78,81 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes) {
 
     // Record the program's absolute start time
     auto program_start_time = std::chrono::high_resolution_clock::now();
+    auto prev = 0;
+    auto i = 0;
+    auto total_delay = 0;
+    struct timespec start_t, rem_t;
 
     for (const auto& noise : noises) {
+        //std::cout << noises.size() <<std::endl;
+        //std::cout << i <<std::endl;
+        i++;
+        if (prev>=noise.start_time){
+            perror("unsorted noise_config");
+            exit(EXIT_FAILURE);
+        }
         // Calculate relative wait time for this noise
         auto current_time = std::chrono::high_resolution_clock::now();
         auto wait_time = std::chrono::duration<signed long long, std::nano>(noise.start_time) -
-                         std::chrono::duration<signed long long, std::nano>(current_time - program_start_time);
+                         std::chrono::duration_cast<std::chrono::duration<double, std::nano>>(current_time - program_start_time);
 
         // Sleep until the start time for this noise
         if (wait_time.count() > 0) {
-            struct timespec start_t, rem_t;
+            
+            #ifdef USE_TIMER
+            /* Start the timer */
+            its.it_value.tv_sec = std::floor(wait_time.count() / 1e9);
+            its.it_value.tv_nsec = std::fmod(wait_time.count(), 1e9);
+            its.it_interval.tv_sec = its.it_value.tv_sec;
+            its.it_interval.tv_nsec = its.it_value.tv_nsec;
+            if (timer_settime(timerid, 0, &its, NULL) == -1) {
+                perror("timer_settime");
+                std::cout << "E" <<std::endl;
+                exit(EXIT_FAILURE);
+            }
+            //Pause until SIGCONT
+            pause();
+
+            #else
+
             start_t.tv_sec = std::floor(wait_time.count() / 1e9);
             start_t.tv_nsec = std::fmod(wait_time.count(), 1e9);
+            //while (clock_nanosleep(CLOCK_MONOTONIC, 0, &start_t, &rem_t) != 0) {
             while (nanosleep(&start_t, &rem_t) != 0) {
                 start_t.tv_sec = rem_t.tv_sec;
                 start_t.tv_nsec = rem_t.tv_nsec;
             }
+            #endif
+        } else {
+            //Count amount of time current time overshoots noise start_time
+            total_delay += wait_time.count();
         }
 
         // Simulate CPU load for this noise duration
         auto end_time = std::chrono::duration<signed long long, std::nano>(noise.start_time) + 
-                        std::chrono::duration<signed long long, std::nano>(noise.duration) + program_start_time; 
+                        std::chrono::duration<signed long long, std::nano>(noise.duration) + program_start_time;
+                        
+        if (end_time > std::chrono::duration<signed long long, std::nano>(noise.duration) + program_start_time) {
+            end_time = std::chrono::duration<signed long long, std::nano>(noise.duration) + program_start_time;
+        }
 
         while (std::chrono::high_resolution_clock::now() < end_time) {
             volatile double res = seed % 1000 + 1; // Dummy work
         }
+        prev = noise.start_time;
     }
-
+    std::cout << noises.size() <<std::endl;
+    std::cout << i <<std::endl;
+    std::cout << total_delay <<std::endl;
     // Close semaphores
     cleanup_semaphores();
     #ifdef DEBUG
     std::cout << "Exiting cpuoccupy\n";
     #endif
+    std::cout << "Exiting cpuoccupy\n";
     return EXIT_SUCCESS;
 }
+
 
 int parseJSON(std::vector<Noise>& noise_schedule, const std::string& json_file, const std::string& core_id) {
     // Load the JSON file
