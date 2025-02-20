@@ -6,8 +6,6 @@
 #include <cstdlib>
 #include <iostream>
 
-#define TIMEOUT_SECONDS 10  // Timeout in seconds
-
 const char* SEM_READY = "/sem_ready";
 const char* SEM_START = "/sem_start";
 
@@ -29,25 +27,9 @@ void wait_for_barrier(int total_processes) {
     // Signal that this process is ready
     sem_post(ready);
 
-    // Wait until all processes are ready or timeout occurs
-    struct timespec ts;
-    if (clock_gettime(CLOCK_REALTIME, &ts) == -1) {
-        perror("clock_gettime");
-        exit(EXIT_FAILURE);
-    }
-    ts.tv_sec += TIMEOUT_SECONDS; // Set the timeout
-
+    // Wait until all processes are ready
     int ready_count;
     do {
-        if (sem_timedwait(ready, &ts) == -1) {
-            if (errno == ETIMEDOUT) {
-                std::cerr << "Timeout while waiting for all processes to be ready." << std::endl;
-                exit(EXIT_FAILURE);
-            } else {
-                perror("sem_timedwait");
-                exit(EXIT_FAILURE);
-            }
-        }
         sem_getvalue(ready, &ready_count);
     } while (ready_count < total_processes);
 
