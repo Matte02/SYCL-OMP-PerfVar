@@ -26,19 +26,7 @@ static void handler(int sig, siginfo_t *si, void *uc) {
 }
 #endif
 
-#ifdef BARRIER_TIMEOUT
-#define TIMEOUT_SECONDS 10
-bool passed_barrier = false;
-static void timeout_handler(int sig, siginfo_t *si, void *uc) {
-    auto caught_signal = sig;
-    if (!passed_barrier) {
-        cleanup_semaphores();
-        exit(EXIT_FAILURE);
-    }  
-}
-#endif
-
-int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes) {
+int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::string core_id) {
     //Set seed
     int seed = rand();
     //Remove timer slack. Not tested if it actually helps.
@@ -85,63 +73,15 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes) {
 
     init_semaphores();
 
-    #ifdef BARRIER_TIMEOUT
-    timer_t timeoutid;
-    struct sigevent sevt;
-    struct itimerspec itst;
-    struct sigaction sat;
-
-    /* Establish handler for timeout signal */
-    sat.sa_flags = SA_SIGINFO;
-    sat.sa_sigaction = timeout_handler;
-    sigemptyset(&sat.sa_mask);
-    if (sigaction(SIGRTMAX, &sat, NULL) == -1) {
-        perror("sigaction");
-        exit(EXIT_FAILURE);
-    }
-
-    /* Create the timer */
-    sevt.sigev_notify = SIGEV_SIGNAL;
-    sevt.sigev_signo = SIGRTMAX;
-    sevt.sigev_value.sival_ptr = &timeoutid;
-    if (timer_create(CLOCK_MONOTONIC, &sevt, &timeoutid) == -1) {
-        perror("timeout_create");
-        exit(EXIT_FAILURE);
-    }
-    /* Start the timer */
-    itst.it_value.tv_sec = TIMEOUT_SECONDS;
-    itst.it_value.tv_nsec = 0;
-    itst.it_interval.tv_sec = itst.it_value.tv_sec;
-    itst.it_interval.tv_nsec = itst.it_value.tv_nsec;
-    if (timer_settime(timeoutid, 0, &itst, NULL) == -1) {
-        perror("timer_settime");
-        exit(EXIT_FAILURE);
-    }
-    #endif
-
     // Sync up all processes to start at the same time.
     wait_for_barrier(number_of_processes);
 
-    #ifdef BARRIER_TIMEOUT
-    passed_barrier = true;
-    if (timer_delete(timeoutid) == -1) {
-        perror("timer_delete");
-        exit(EXIT_FAILURE);
-    }
-    #endif
-
     // Record the program's absolute start time
     auto program_start_time = std::chrono::high_resolution_clock::now();
-    auto prev = 0;
-    auto i = 0;
     auto total_delay = 0;
     struct timespec start_t, rem_t;
 
     for (const auto& noise : noises) {
-        i++;
-        if (prev>=noise.start_time){
-            exit(EXIT_FAILURE);
-        }
         // Calculate relative wait time for this noise
         auto current_time = std::chrono::high_resolution_clock::now();
         auto wait_time = std::chrono::duration<signed long long, std::nano>(noise.start_time) -
@@ -188,17 +128,14 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes) {
         }
 
         while (std::chrono::high_resolution_clock::now() < end_time) {
-            volatile double res = seed % 1000 + 1; // Dummy work
+            volatile double work = seed % 1000 + 1; // Dummy work
         }
-        prev = noise.start_time;
     }
     // Close semaphores
     cleanup_semaphores();
-    #ifdef DEBUG
-    std::cout << "Exiting cpuoccupy\n";
-    std::cout << noises.size() <<std::endl;
-    std::cout << i <<std::endl;
-    std::cout << total_delay <<std::endl;
+    #ifdef DEBUG   
+    std::cout << "Core " << core_id << " Number of Noises: "  << noises.size() << " Total Delay: " << total_delay << std::endl;
+    std::cout << "Exiting cpuoccupy for cpu " << core_id << "\n";
     #endif
     return EXIT_SUCCESS;
 }
@@ -217,9 +154,16 @@ int parseJSON(std::vector<Noise>& noise_schedule, const std::string& json_file, 
     file.close();
 
     if (config.contains(core_id)) {
+        Noise previous = {0,0};
         for (const auto& entry : config[core_id]) {
             Noise noise = {entry[0].get<signed long long>(), entry[1].get<signed long long>()};
-            noise_schedule.push_back(noise);
+            if (previous.start_time < noise.start_time) {
+                noise_schedule.push_back(noise);
+                
+            } else {
+                std::cerr << "Error: Noise not in cronological order." << std::endl;
+            }
+            previous = noise;
         }
     } else {
         // Should this casue an error? Or should it just continue with an empty noise schedule?
@@ -249,5 +193,5 @@ int main(int argc, char* argv[]) {
     }
 
     // Start the CPU occupy function with higher resolution
-    return cpuoccupy(noises_schedule, number_of_processes);
+    return cpuoccupy(noises_schedule, number_of_processes, core_id);
 }
