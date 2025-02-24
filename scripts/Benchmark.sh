@@ -27,6 +27,8 @@ if [ "$INJECT_NOISE_VALUE" = "yes" ]; then
     benchparameters=("$NBODY_PARAMS")
     binname=("main")
     frameworks=("omp" "sycl")
+    #This should ensure that we are able to reach 100% utilization for the realtime processes
+    echo 1000000 > /proc/sys/kernel/sched_rt_runtime_us
 else
     echo "Noise injection is disabled. Using default parameters."
     benches=("nbody" "babelstream" "miniFE")
@@ -85,7 +87,15 @@ for bench in ${benches[@]}; do
                 sleep 1  # Allow tracer warmup
             fi
 
+            echo $i
+            # Run the benchmark
+            binary="${binname[$benchidx]}"
+            time ./"$binary" $params > "$logpath/$curbench-$TRACECOUNT-$SYSTEM.benchout" 2>&1 &
+            benchmark_pid=$!  # Save the PID of the benchmark process
+
             if [ "$INJECT_NOISE_VALUE" = "yes" ]; then
+                #Allow the workload to reach barrier 
+                sleep 1
                 # Run noise injection script in the background
                 cd "$CURPATH" || exit 1
                 python3 "$CURPATH/run_noise.py" --verbose --rebuild &
@@ -93,26 +103,19 @@ for bench in ${benches[@]}; do
                 cd "$benchpath/$curbench/${makefilepath[$benchidx]}" || exit 1
             fi
 
-            echo $i
-            # Run the benchmark
-            binary="${binname[$benchidx]}"
-            OUTPUT=$(TIMEFORMAT="%R"; { time ./"$binary" $params; } 2>&1)
+            #Wait for all child processes to finish
+            wait
 
-            if [ "$INJECT_NOISE_VALUE" = "yes" ]; then
-            benchmark_pid=$!  # Save the PID of the benchmark process
-            wait $benchmark_pid $noise_pid
-            fi
-            
             # Disable tracing if specified
             if [ $TRACE -eq 1 ]; then
                 echo 0 > "$OSNOISEPATH/tracing_on"
                 sleep 1
                 cat "$OSNOISEPATH/trace" > "$logpath/$curbench-$TRACECOUNT-$SYSTEM.trace"
             fi
-
+            
             # Save benchmark output
-            echo "Input params: $params" > "$logpath/$curbench-$TRACECOUNT-$SYSTEM.benchout"
-            echo "$OUTPUT" >> "$logpath/$curbench-$TRACECOUNT-$SYSTEM.benchout"
+            echo "Input params: $params" >> "$logpath/$curbench-$TRACECOUNT-$SYSTEM.benchout"
+            echo "Noise injector was enabled? A: $INJECT_NOISE_VALUE" >> "$logpath/$curbench-$TRACECOUNT-$SYSTEM.benchout"
         done
         
         echo "End: $curbench"
