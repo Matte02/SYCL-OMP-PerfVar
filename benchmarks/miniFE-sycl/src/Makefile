@@ -22,9 +22,10 @@ HIP       = no
 HIP_ARCH  = gfx908
 #GCC_TOOLCHAIN = "/auto/software/gcc/x86_64/gcc-9.1.0/"
 LAUNCHER       =
+INJECT_NOISE = no
 
 CPPFLAGS = -I. -I../utils -I../fem $(MINIFE_TYPES) $(MINIFE_MATRIX_TYPE) \
-           -std=c++17 -Wall -fsycl --gcc-toolchain=$(GCC_TOOLCHAIN)
+           -std=c++17 -Wall -fsycl --gcc-toolchain=$(GCC_TOOLCHAIN) -qopenmp -I../../../common 
 
 ifeq ($(CUDA), yes)
   CPPFLAGS += -fsycl-targets=nvptx64-nvidia-cuda \
@@ -51,7 +52,11 @@ ifeq ($(GPU),yes)
   CPPFLAGS +=-DUSE_GPU
 endif
 
-LIBS=
+ifeq ($(INJECT_NOISE),yes)
+  CPPFLAGS += -DNOISE
+endif
+
+LIBS=-L../../../common -lcommon
 
 # The MPICH_IGNORE_CXX_SEEK macro is required for some mpich versions,
 # such as the one on my cygwin machine.

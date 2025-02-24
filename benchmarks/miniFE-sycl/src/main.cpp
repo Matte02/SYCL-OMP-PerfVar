@@ -62,6 +62,12 @@
 #include <miniFE_no_info.hpp>
 #endif
 
+#include "time_utils.hpp"
+
+#ifdef NOISE
+#include "barrier_sync.h"
+#endif
+
 //The following macros should be specified as compile-macros in the
 //makefile. They are defaulted here just in case...
 #ifndef MINIFE_SCALAR
@@ -80,6 +86,30 @@ void add_params_to_yaml(YAML_Doc& doc, miniFE::Parameters& params);
 void add_configuration_to_yaml(YAML_Doc& doc, int numprocs, int numthreads);
 void add_timestring_to_yaml(YAML_Doc& doc);
 
+
+#ifdef NOISE
+int num_of_processes = 0;  // Default to 0
+
+void parse_num_processes(int argc, char** argv) {
+  for (int i = 1; i < argc; i++) {
+    std::string arg = argv[i];
+
+    if (arg == "--numprocesses" || arg == "-p") {
+      if (i + 1 < argc) {
+        num_of_processes = std::atoi(argv[i + 1]);
+        if (num_of_processes < 0) {
+          std::cerr << "Invalid value for --numprocesses. Must be >= 0." << std::endl;
+          exit(EXIT_FAILURE);
+        }
+      } else {
+        std::cerr << "Missing value for --numprocesses option." << std::endl;
+        exit(EXIT_FAILURE);
+      }
+    }
+  }
+}
+#endif
+
 //
 //We will create a 'box' of size nx X ny X nz, partition it among processors,
 //then call miniFE::driver which will use the partitioned box as the domain
@@ -88,9 +118,23 @@ void add_timestring_to_yaml(YAML_Doc& doc);
 //
 
 int main(int argc, char** argv) {
+  #ifdef NOISE
+  // Parse num_of_processes only if NOISE is enabled
+  parse_num_processes(argc, argv);
+  std::cout << "Num of processes:" << num_of_processes << std::endl;
+  if (num_of_processes >= 0) {
+    init_semaphores();
+    wait_for_barrier(num_of_processes + 1);
+  } else {
+    std::cerr << "Expected a non negative value for --numprocesses with NOISE enabled." << std::endl;
+    return EXIT_FAILURE;
+  }
+  #endif
+
   miniFE::Parameters params;
   miniFE::get_parameters(argc, argv, params);
 
+  Timer total_timer;
   int numprocs = 1, myproc = 0;
   miniFE::initialize_mpi(argc, argv, numprocs, myproc);
 
@@ -209,6 +253,13 @@ int main(int argc, char** argv) {
 
   miniFE::finalize_mpi();
 
+  total_timer.stop();
+  std::cout << std::endl;
+  total_timer.print("Total Duration");
+
+  #ifdef NOISE
+  cleanup_semaphores();
+  #endif
   return return_code;
 }
 

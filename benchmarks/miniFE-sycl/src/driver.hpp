@@ -67,6 +67,8 @@
 #include <mytimer.hpp>
 #include <YAML_Doc.hpp>
 
+#include "time_utils.hpp"
+
 #ifdef HAVE_MPI
 #include <mpi.h>
 #endif
@@ -285,8 +287,12 @@ driver(const Box& global_box, Box& my_box,
 #endif
   }
   else {
+    Timer workload_timer;
     cg_solve(A, b, x, matvec_std<MatrixType,VectorType>(), max_iters, tol,
            num_iters, rnorm, cg_times);
+    workload_timer.stop();
+    std::cout << std::endl;
+    workload_timer.print("Workload Time");
     if (myproc == 0) {
       std::cout << "Final Resid Norm: " << rnorm << std::endl;
     }
