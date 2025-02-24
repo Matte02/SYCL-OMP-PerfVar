@@ -79,6 +79,7 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::st
     // Record the program's absolute start time
     auto program_start_time = std::chrono::high_resolution_clock::now();
     auto total_delay = 0;
+    auto max_delay = 0;
     struct timespec start_t, rem_t;
 
     for (const auto& noise : noises) {
@@ -116,16 +117,13 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::st
             #endif
         } else {
             //Count amount of time current time overshoots noise start_time
+            max_delay = (wait_time.count() < max_delay) ? wait_time.count() : max_delay;
             total_delay += wait_time.count();
         }
 
         // Simulate CPU load for this noise duration
-        auto end_time = std::chrono::duration<signed long long, std::nano>(noise.start_time) + 
-                        std::chrono::duration<signed long long, std::nano>(noise.duration) + program_start_time;
-                        
-        if (end_time > std::chrono::duration<signed long long, std::nano>(noise.duration) + program_start_time) {
-            end_time = std::chrono::duration<signed long long, std::nano>(noise.duration) + program_start_time;
-        }
+        current_time = std::chrono::high_resolution_clock::now();
+        auto end_time = std::chrono::duration<signed long long, std::nano>(noise.duration) + current_time;
 
         while (std::chrono::high_resolution_clock::now() < end_time) {
             volatile double work = seed % 1000 + 1; // Dummy work
@@ -134,7 +132,7 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::st
     // Close semaphores
     cleanup_semaphores();
     #ifdef DEBUG   
-    std::cout << "Core " << core_id << " Number of Noises: "  << noises.size() << " Total Delay: " << total_delay << std::endl;
+    std::cout << "Core " << core_id << " Number of Noises: "  << noises.size() << " Total Delay: " << total_delay << " Max Delay: " << max_delay << std::endl;
     std::cout << "Exiting cpuoccupy for cpu " << core_id << "\n";
     #endif
     return EXIT_SUCCESS;
