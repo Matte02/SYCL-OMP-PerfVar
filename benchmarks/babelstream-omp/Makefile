@@ -6,9 +6,9 @@
 CC        = icpx
 OPTIMIZE  = yes
 DEBUG     = no
-DEVICE    = gpu
+DEVICE    = cpu
 LAUNCHER  =
-
+INJECT_NOISE = yes
 #===============================================================================
 # Program name & source code list
 #===============================================================================
@@ -24,10 +24,10 @@ obj = $(source:.cpp=.o)
 #===============================================================================
 
 # Standard Flags
-CFLAGS := $(EXTRA_CFLAGS) -std=c++14 -Wall 
+CFLAGS := $(EXTRA_CFLAGS) -std=c++17 -Wall -I../../common
 
 # Linker Flags
-LDFLAGS = 
+LDFLAGS = -L../../common -lcommon
 
 # Debug Flags
 ifeq ($(DEBUG),yes)
@@ -45,6 +45,10 @@ ifeq ($(DEVICE),gpu)
   CFLAGS +=-fiopenmp -fopenmp-targets=spir64 -D__STRICT_ANSI__
 else
   CFLAGS +=-qopenmp
+endif
+
+ifeq ($(INJECT_NOISE),yes)
+  CFLAGS += -DNOISE
 endif
 #===============================================================================
 # Targets to Build

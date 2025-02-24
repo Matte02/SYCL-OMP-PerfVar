@@ -3,18 +3,18 @@
 #===============================================================================
 
 # Compiler can be set below, or via environment variable
-CC        = clang++
+CC        = icpx
 OPTIMIZE  = yes
 DEBUG     = no
 LAUNCHER  =
 
-GPU       = yes
+GPU       = no
 CUDA      = no
 CUDA_ARCH = sm_70
 HIP       = no
 HIP_ARCH  = gfx908
 #GCC_TOOLCHAIN = "/auto/software/gcc/x86_64/gcc-9.1.0/"
-
+INJECT_NOISE = no
 #===============================================================================
 # Program name & source code list
 #===============================================================================
@@ -30,10 +30,10 @@ obj = $(source:.cpp=.o)
 #===============================================================================
 
 # Standard Flags
-CFLAGS := $(EXTRA_CFLAGS) -std=c++17 -Wall -fsycl --gcc-toolchain=$(GCC_TOOLCHAIN)
+CFLAGS := $(EXTRA_CFLAGS) -std=c++17 -Wall -fsycl --gcc-toolchain=$(GCC_TOOLCHAIN) -I../../common
 
 # Linker Flags
-LDFLAGS = 
+LDFLAGS = -L../../common -lcommon
 
 ifeq ($(CUDA), yes)
   CFLAGS += -fsycl-targets=nvptx64-nvidia-cuda \
@@ -58,6 +58,10 @@ endif
 
 ifeq ($(GPU),yes)
   CFLAGS +=-DUSE_GPU
+endif
+
+ifeq ($(INJECT_NOISE),yes)
+  CFLAGS += -DNOISE
 endif
 #===============================================================================
 # Targets to Build

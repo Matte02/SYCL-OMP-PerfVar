@@ -6,7 +6,7 @@
 
 #include <sycl/sycl.hpp>
 #include "GSimulation.hpp"
-
+#include "time_utils.hpp"
 /* Default Constructor for the GSimulation class which sets up the default
  * values for number of particles, number of integration steps, time steo and
  * sample frequency */
@@ -118,6 +118,7 @@ void GSimulation::Start() {
 
   TimeInterval t0;
   int nsteps = get_nsteps();
+  Timer workload_timer;
   // Looping across integration steps
   for (int s = 1; s <= nsteps; ++s) {
     TimeInterval ts0;
@@ -196,8 +197,8 @@ void GSimulation::Start() {
     });
 
     q.wait();
+    workload_timer.stop();
     double elapsed_seconds = ts0.Elapsed();
-
     q.memcpy(energy.data(), e, sizeof(RealType)).wait();
 
     kenergy_ = 0.5 * energy[0];
@@ -231,7 +232,10 @@ void GSimulation::Start() {
   std::cout << "# Average Performance : " << av << " +- " << dev << "\n";
   std::cout << "===============================";
   std::cout << "\n";
-
+  
+  std::cout << std::endl;
+  workload_timer.print("Workload Time");
+  std::cout << std::endl;
   sycl::free(p, q);
   sycl::free(e, q);
 }

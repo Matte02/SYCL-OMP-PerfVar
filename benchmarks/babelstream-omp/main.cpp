@@ -45,6 +45,8 @@
 #include <cstring>
 #include <omp.h>
 
+#include "barrier_sync.h"
+#include "time_utils.hpp"
 
 // Thread block size
 #define TBSIZE 256
@@ -58,7 +60,7 @@
 // Default size of 2^25
 int ARRAY_SIZE = 33554432;
 unsigned int num_times = 100;
-
+int num_of_processes = 0;
 
 template <class T>
 void init_arrays(
@@ -189,7 +191,7 @@ void run()
 
     // Declare timers
     std::chrono::high_resolution_clock::time_point t1, t2;
-
+    Timer workload_timer;
     // Main loop
     for (unsigned int k = 0; k < num_times; k++)
     {
@@ -230,7 +232,8 @@ void run()
       t2 = std::chrono::high_resolution_clock::now();
       timings[5].push_back(std::chrono::duration_cast<std::chrono::duration<double> >(t2 - t1).count());
     }
-
+    workload_timer.stop();
+    
     // Display timing results
     std::cout
       << std::left << std::setw(12) << "Function"
@@ -273,7 +276,9 @@ void run()
     }
     // Add a blank line
     std::cout << std::endl;
-
+    
+    workload_timer.print("Workload Time");
+    std::cout << std::endl;
   }
 
   free(a);
@@ -310,7 +315,7 @@ void parseArguments(int argc, char *argv[])
       }
     }
     else if (!std::string("--numtimes").compare(argv[i]) ||
-        !std::string("-n").compare(argv[i]))
+             !std::string("-n").compare(argv[i]))
     {
       if (++i >= argc || !parseUInt(argv[i], &num_times))
       {
@@ -323,22 +328,32 @@ void parseArguments(int argc, char *argv[])
         exit(EXIT_FAILURE);
       }
     }
+    else if (!std::string("--numprocesses").compare(argv[i]) ||
+             !std::string("-p").compare(argv[i]))
+    {
+      if (++i >= argc || !parseInt(argv[i], &num_of_processes) || num_of_processes < 0)
+      {
+        std::cerr << "Invalid number of processes." << std::endl;
+        exit(EXIT_FAILURE);
+      }
+    }
     else if (!std::string("--help").compare(argv[i]) ||
-        !std::string("-h").compare(argv[i]))
+             !std::string("-h").compare(argv[i]))
     {
       std::cout << std::endl;
-      std::cout << "Usage: " << argv[0] << " [OPTIONS]" << std::endl << std::endl;
+      std::cout << "Usage: " << argv[0] << " [OPTIONS]" << std::endl
+                << std::endl;
       std::cout << "Options:" << std::endl;
       std::cout << "  -h  --help               Print the message" << std::endl;
       std::cout << "  -s  --arraysize  SIZE    Use SIZE elements in the array" << std::endl;
       std::cout << "  -n  --numtimes   NUM     Run the test NUM times (NUM >= 2)" << std::endl;
+      std::cout << "  -p  --numprocesses NUM   Number of additional processes to synchronize" << std::endl;
       std::cout << std::endl;
       exit(EXIT_SUCCESS);
     }
     else
     {
-      std::cerr << "Unrecognized argument '" << argv[i] << "' (try '--help')"
-        << std::endl;
+      std::cerr << "Unrecognized argument '" << argv[i] << "' (try '--help')" << std::endl;
       exit(EXIT_FAILURE);
     }
   }
@@ -347,8 +362,21 @@ void parseArguments(int argc, char *argv[])
 int main(int argc, char *argv[])
 {
   parseArguments(argc, argv);
-  run<float>();
+  #ifdef NOISE
+    init_semaphores();
+    wait_for_barrier(num_of_processes + 1);
+  #endif
+
+
+  Timer total_timer;
   run<double>();
+
+  total_timer.stop();
+  total_timer.print("Total Duration");
+
+  #ifdef NOISE
+  cleanup_semaphores();
+  #endif
 }
 
 

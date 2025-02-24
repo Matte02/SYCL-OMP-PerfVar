@@ -16,7 +16,7 @@
 
 int main(int argc, char** argv) {
   #ifdef NOISE
-  if (argc == 4) {
+  if (argc >= 4) {
     int num_of_other_processes = std::atoi(argv[3]);
     init_semaphores();
     wait_for_barrier(num_of_other_processes + 1);

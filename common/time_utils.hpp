@@ -30,7 +30,6 @@ struct Timer {
 
     // Prints start, end, and duration
     void print(const std::string& label = "Elapsed time") const {
-        std::cout << "Using Time Utils\n";
         print_time("Start time", start_time);
         print_time("End time", end_time);
         std::cout << label << ": " << std::fixed << std::setprecision(9) << elapsed() << " seconds" << std::endl;

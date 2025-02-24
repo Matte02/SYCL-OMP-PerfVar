@@ -1,5 +1,5 @@
 # Define the compiler
-CXX = g++
+CXX = icpx
 CXXFLAGS = -std=c++20 -O3 -Wall  -Iinclude -I../common
 LDFLAGS = -lpthread -lrt
 

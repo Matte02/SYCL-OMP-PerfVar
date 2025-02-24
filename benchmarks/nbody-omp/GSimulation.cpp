@@ -5,7 +5,7 @@
 // =============================================================
 
 #include "GSimulation.hpp"
-
+#include "time_utils.hpp"
 /* Default Constructor for the GSimulation class which sets up the default
  * values for number of particles, number of integration steps, time steo and
  * sample frequency */
@@ -104,7 +104,7 @@ void GSimulation::Start() {
 
   TimeInterval t0;
   int nsteps = get_nsteps();
-
+  Timer workload_timer;
   #pragma omp target data map (to: p[0:n]) map(alloc: e[0:n])
   {
     // Looping across integration steps
@@ -193,6 +193,8 @@ void GSimulation::Start() {
       }
     }  // end of the time step loop
   }
+  workload_timer.stop();
+
   total_time_ = t0.Elapsed();
   total_flops_ = gflops * get_nsteps();
   av /= (double)(nf - 2);
@@ -203,6 +205,10 @@ void GSimulation::Start() {
   std::cout << "# Total Time (s)      : " << total_time_ << "\n";
   std::cout << "# Average Performance : " << av << " +- " << dev << "\n";
   std::cout << "===============================" << "\n";
+  
+  std::cout << std::endl;
+  workload_timer.print("Workload Time");
+  std::cout << std::endl;
 }
 
 #ifdef DEBUG
