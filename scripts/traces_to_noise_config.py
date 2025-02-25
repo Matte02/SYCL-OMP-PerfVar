@@ -10,6 +10,8 @@ from multiprocessing import Pool
 import json
 from functools import reduce
 
+#TODO: Parallelize/ combine for loops. Handle edge cases gracefully
+
 #Usage: Arg 1 contains the path to the trace folder. Arg 2 contains workload name eg "main"
 def main(): 
     if len(sys.argv) < 3:
@@ -145,8 +147,6 @@ def main():
         noisedict[cpu] = combinednoises 
 
     #Write output to json
-
-    
     json_string = json.dumps(noisedict, indent=4) 
     with open("noise_config.json", "w") as f:
         f.write(json_string) 
@@ -164,7 +164,6 @@ def getcpudict(file):
     durationtlcre = re.compile("duration [0-9]*")
     cpure = re.compile("\\[[0-9]{3}\\]")
     #5258.924435: irq_noise: local_timer:236 start
-    #timestampre = re.compile("[0-9]{4}\\.[0-9]*:")
     taskre = re.compile("noise: .*:")
 
     if file.endswith(".trace"): 
@@ -197,8 +196,6 @@ def getcpudict(file):
 
                 duration = durationtlcre.search(line)
                 duration = int(duration.group(0)[9:])
-                #timestamp = timestampre.search(line)
-                #timestamp = timestamp.group(0)[:len(timestamp.group(0))-1]
                 task = taskre.search(line)
 
                 if task == None:
@@ -223,90 +220,7 @@ def getcpudict(file):
         for cpu, tasks in cpudict.items():
             for task, timinglist in tasks.items():
                 cpudict[cpu][task] = sort_task_start((task, timinglist))[1]
-            #cpudict[cpu] = pool.map(sort_task_start, tasks.items())
         return (cpudict, dur)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#
-    ##Seperate workload from noise and remove unnecessary noise information (taskname)
-    #noisedict = dict()
-    #workloadexec = []
-    #for cpu, tasks in cpudict.items():
-    #    noise = []
-    #    for task, timinglist in tasks:
-    #        if task != workloadtaskname:
-    #            noise.extend(timinglist)
-    #        else:
-    #            workloadexec.extend(timinglist)
-    #    noise = sorted(noise, key=lambda tup: tup[0])
-    #    noisedict[cpu] = noise
-    #
-    #workloadexec = sorted(workloadexec, key=lambda tup: tup[0])
-#
-    ##Tries to align mono_raw and osnoise ("tlc") start clock 
-    #syncstartdiff = workloadexec[0][0]
-#
-    ##Combine several preempting noises into one consecutive noise
-    #for cpu, noises in noisedict.items():
-    #    combinednoises = list()
-    #    nextduration = -1
-    #    nextstart = -1
-    #    for noise in noises:
-    #        print("Combine?")
-    #        print(nextstart)
-    #        print(nextduration)
-    #        print(noise)
-    #        #Make the start of the workload be time instant 0
-    #        noise = (noise[0]-syncstartdiff, noise[1])
-    #        #Remove noises started before starting point
-    #        if noise[0] < 0: 
-    #            continue
-    #        #First noise
-    #        if nextstart == -1:
-    #            nextstart = noise[0]
-    #            nextduration = noise[1]
-    #        else: 
-    #            #Check if starttime is during an execution of another noise. If yes, combine.
-    #            if nextstart+nextduration >= noise[0]:
-    #                print("Combine")
-    #                nextduration += noise[1]
-    #            else:
-    #                combinednoises.append((nextstart, nextduration))
-    #                nextstart = noise[0]
-    #                nextduration = noise[1]
-#
-    #    combinednoises.append((nextstart, nextduration))
-    #    noisedict[cpu] = combinednoises 
-#
-    ##Write output to json
-#
-    #
-    #json_string = json.dumps(noisedict, indent=4) 
-    #with open("noise_config.json", "w") as f:
-    #    f.write(json_string) 
 
 def sort_task_start(task):
     return (task[0], sorted(task[1], key=lambda tup: int(tup[0])))
