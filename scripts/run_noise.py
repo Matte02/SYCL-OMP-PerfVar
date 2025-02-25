@@ -17,7 +17,7 @@ def build_code(rebuild=False, debug=False):
     else:
         subprocess.run(['make', 'all'], check=True)
 
-def run_cpuoccupy_parallel(json_file, verbose=False, no_benchmark=False):
+def run_cpuoccupy_parallel(json_file, verbose=False, no_benchmark=False, any_core=False):
     """
     Run cpuoccupy processes in parallel, one for each core defined in the JSON file.
     """
@@ -61,9 +61,9 @@ def run_cpuoccupy_parallel(json_file, verbose=False, no_benchmark=False):
     print(f"Num of processes (should be number of cores({num_cores_in_json}) + 1): {num_processes}")
     for core_id in core_ids:
         # Construct the command for taskset
-        # TODO: Once we start running this with benchmarks, we need to increase the number of process to wait for by 1. len(core_ids) + 1
-        # VERY IMPORTANT IF WE HAVE "wait_for_barrier()" in benchmarks. 
-        command = f"taskset -c {core_id} ./{NOISE_INJECTOR_FOLDER_PATH}/cpuoccupy {json_file} {core_id} {num_processes}"
+        command = f"./{NOISE_INJECTOR_FOLDER_PATH}/cpuoccupy {json_file} {core_id} {num_processes}"
+        if not any_core: 
+            command = f"taskset -c {core_id} " + command
 
         if verbose:
             print(f"Starting: {command}")
@@ -88,7 +88,8 @@ def main():
     parser.add_argument('--verbose', action='store_true', help="Enable verbose output")
     parser.add_argument('--rebuild', action='store_true', help="Force rebuild of the project")
     parser.add_argument('--debug', action='store_true', help="Build in debug mode")
-    parser.add_argument('--no-benchmark', action='store_true', help="Wether to wait for benchmarks sync signal or not. This should be enabled if running without benchmark.")
+    parser.add_argument('--no-benchmark', action='store_true', help="Whether to wait for benchmarks sync signal or not. This should be enabled if running without benchmark.")
+    parser.add_argument('--any-core', action='store_true', help="Whether the noise should run on any core (if this option isn't selected the noise will run on specified core only).")
 
     args = parser.parse_args()
 
@@ -96,7 +97,7 @@ def main():
     build_code(args.rebuild, args.debug)
 
     # Step 2: Run all cpuoccupy processes in parallel
-    run_cpuoccupy_parallel(args.json_file, args.verbose, args.no_benchmark)
+    run_cpuoccupy_parallel(args.json_file, args.verbose, args.no_benchmark, args.any_core)
 
 if __name__ == "__main__":
     main()
