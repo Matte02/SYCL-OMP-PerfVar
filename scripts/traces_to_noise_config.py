@@ -158,7 +158,11 @@ def getcpudict(file):
     tracepath=os.path.normpath(sys.argv[1])
 
     numberre = re.compile("[0-9]*")
-    durationre = re.compile("Duration: [0-9.]*")
+    
+    # Define regular expressions for matching the total duration and the second start time
+    duration_re = re.compile(r"Total Duration: (\d+\.\d+) seconds")
+    start_time_re = re.compile(r"Start time: (\d+\.\d+) seconds")
+    
     commentre = re.compile("#")
     starttlcre = re.compile("start [0-9.]*")
     durationtlcre = re.compile("duration [0-9]*")
@@ -166,18 +170,30 @@ def getcpudict(file):
     #5258.924435: irq_noise: local_timer:236 start
     taskre = re.compile("noise: .*:")
 
+
+    # Initialize variables to store the extracted values
+    total_duration = None
+    second_start_time = None
     if file.endswith(".trace"): 
         #Fetch duration of workload
         with open(tracepath+"/"+file[:len(file)-6]+".benchout", "r") as lines:
             for line in lines:
-                dur = durationre.match(line)
-                if dur != None:
-                    dur = dur.group(0)[10:]
-                    dur = dur.split(".")
-                    dur = int(dur[0]+dur[1])
-                    break
-                    
+                # Match and extract the total duration
+                dur_match = duration_re.match(line)
+                if dur_match:
+                    total_duration = dur_match.group(1)
+                    total_duration = int(float(total_duration) * 1e9)  # Convert to nanoseconds
 
+                # Match and extract the second start time
+                start_match = start_time_re.match(line)
+                if start_match:
+                    if second_start_time is None:
+                        # Skip the first start time
+                        second_start_time = -1
+                    else:
+                        second_start_time = start_match.group(1)
+                        second_start_time = int(float(second_start_time) * 1e9)  # Convert to nanoseconds
+                    
         #Dict(CPU,Dict(task,[(start,duration)]))
         cpudict: dict[int, dict[str, list[(int, int)]]]#= dict({'NULL': dict({'NULL': []})})
         cpudict = dict()
@@ -193,6 +209,9 @@ def getcpudict(file):
                 start = start.group(0)[6:]
                 tmp = start.split(".")
                 start = int(tmp[0]+tmp[1])
+                #Filter away noises before the start time
+                if (start < second_start_time):
+                    continue
 
                 duration = durationtlcre.search(line)
                 duration = int(duration.group(0)[9:])
@@ -220,7 +239,7 @@ def getcpudict(file):
         for cpu, tasks in cpudict.items():
             for task, timinglist in tasks.items():
                 cpudict[cpu][task] = sort_task_start((task, timinglist))[1]
-        return (cpudict, dur)
+        return (cpudict, total_duration)
 
 def sort_task_start(task):
     return (task[0], sorted(task[1], key=lambda tup: int(tup[0])))
