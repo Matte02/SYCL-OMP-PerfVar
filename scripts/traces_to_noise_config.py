@@ -43,6 +43,10 @@ def main():
     #Fetch worst case trace
     worsttrace = max(tracelist, key=lambda x: int(x[1]))
 
+    json_string = json.dumps(worsttrace[0], indent=4) 
+    with open("noise_configWC.json", "w") as f:
+        f.write(json_string)  
+
     print("Worst trace duration:")
     print(max(tracelist, key=lambda x: int(x[1]))[1])
 
@@ -57,9 +61,12 @@ def main():
                     averagedict[cpu] = dict()
                 if not task in averagedict[cpu]:
                     averagedict[cpu][task] = list()
-                averagedict[cpu][task] = averagedict[cpu][task]+timinglist
+                averagedict[cpu][task] = averagedict[cpu][task] + timinglist
 
-    
+    json_string = json.dumps(averagedict, indent=4) 
+    with open("noise_configAC.json", "w") as f:
+        f.write(json_string)  
+
     #Set duration of task as average of all task on the same cpu
     for cpu, tasks in averagedict.items():
         for task, timinglist in tasks.items():
@@ -75,7 +82,11 @@ def main():
             #Set average duration of task    
             averageduration = int(averageduration / len(timinglist))
             #Add average amount of occurences of task to list  
-            averagedict[cpu][task] = map(lambda x: (x[0], averageduration), averageoccurencelist)
+            averagedict[cpu][task] = list(map(lambda x: (x[0], averageduration), averageoccurencelist))
+    
+    json_string = json.dumps(averagedict, indent=4) 
+    with open("noise_configACD.json", "w") as f:
+        f.write(json_string) 
 
     #Try to remove average inherent noise from worst case trace
     worsttracenoinherent: dict[int, dict[str, list[(int, int)]]]
@@ -91,8 +102,11 @@ def main():
                 if worsttrace[0][cpu][task][closestidx][1] - duration < 0: 
                     worsttrace[0][cpu][task] = worsttrace[0][cpu][task][:closestidx] + worsttrace[0][cpu][task][closestidx+1:]
                 else: 
-                    worsttrace[0][cpu][task][closestidx] = (worsttrace[0][cpu][task][closestidx][1], worsttrace[0][cpu][task][closestidx][1]-duration)
-     
+                    worsttrace[0][cpu][task][closestidx] = (worsttrace[0][cpu][task][closestidx][0], worsttrace[0][cpu][task][closestidx][1]-duration)
+
+    json_string = json.dumps(worsttrace[0], indent=4) 
+    with open("noise_configWCAC.json", "w") as f:
+        f.write(json_string)
     #Approximate average inherent noise has now been removed from worst case trace
 
     #Seperate workload from noise and remove unnecessary noise information (taskname)
@@ -146,6 +160,8 @@ def main():
         combinednoises.append((nextstart, nextduration))
         noisedict[cpu] = combinednoises 
 
+    print("SyncStartDiff")
+    print(syncstartdiff)
     #Write output to json
     json_string = json.dumps(noisedict, indent=4) 
     with open("noise_config.json", "w") as f:
@@ -219,8 +235,8 @@ def getcpudict(file):
                 tmp = start.split(".")
                 start = int(tmp[0]+tmp[1])
                 #Filter away noises before the start time
-                if (start < second_start_time):
-                    continue
+                #if (start < second_start_time):
+                #    continue
 
                 duration = durationtlcre.search(line)
                 duration = int(duration.group(0)[9:])
