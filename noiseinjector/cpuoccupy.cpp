@@ -80,6 +80,9 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::st
     auto program_start_time = std::chrono::high_resolution_clock::now();
     auto total_delay = 0;
     auto max_delay = 0;
+    auto max_oversleep = 0;
+    auto total_oversleep = 0;
+    auto sleeps = 0;
     struct timespec start_t, rem_t;
 
     for (const auto& noise : noises) {
@@ -114,6 +117,17 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::st
                 start_t.tv_sec = rem_t.tv_sec;
                 start_t.tv_nsec = rem_t.tv_nsec;
             }
+            #ifdef DEBUG
+            sleeps++;
+            auto wakeup_delay = std::chrono::duration<signed long long, std::nano>(noise.start_time) -
+                         std::chrono::duration_cast<std::chrono::duration<double, std::nano>>(std::chrono::high_resolution_clock::now() - program_start_time);
+            if(wakeup_delay.count() > 0) {
+                std::cout << "Core " << core_id << "CPU OCCUPY WOKE UP TOO SOON: " << wakeup_delay.count() << std::endl;
+            } else {
+                total_oversleep += wakeup_delay.count();
+                max_oversleep = (wakeup_delay.count() < max_oversleep) ? wakeup_delay.count() : max_oversleep;  
+            }
+            #endif
             #endif
         } else {
             //Count amount of time current time overshoots noise start_time
@@ -133,6 +147,7 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::st
     cleanup_semaphores();
     #ifdef DEBUG   
     std::cout << "Core " << core_id << " Number of Noises: "  << noises.size() << " Total Delay: " << total_delay << " Max Delay: " << max_delay << std::endl;
+    std::cout << "Core " << core_id << " Total Oversleep: " << total_oversleep << " Average Oversleep: " << total_oversleep/sleeps << " Max Oversleep: " << max_oversleep << std::endl;
     std::cout << "Exiting cpuoccupy for cpu " << core_id << "\n";
     #endif
     return EXIT_SUCCESS;
