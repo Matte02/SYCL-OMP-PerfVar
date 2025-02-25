@@ -98,14 +98,13 @@ for bench in ${benches[@]}; do
                 sleep 1
                 # Run noise injection script in the background
                 cd "$CURPATH" || exit 1
-                python3 "$CURPATH/run_noise.py" --verbose --rebuild &
+                output_file="$logpath/$curbench-$SYSTEM.noiseout" 2>&1
+                python3 "$CURPATH/run_noise.py" --verbose --rebuild --debug >> $output_file&
                 noise_pid=$!
                 cd "$benchpath/$curbench/${makefilepath[$benchidx]}" || exit 1
             fi
-
             #Wait for all child processes to finish
-            wait
-
+            wait  $benchmark_pid $noise_pid
             # Disable tracing if specified
             if [ $TRACE -eq 1 ]; then
                 echo 0 > "$OSNOISEPATH/tracing_on"
