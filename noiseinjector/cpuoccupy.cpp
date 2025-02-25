@@ -145,10 +145,19 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::st
     }
     // Close semaphores
     cleanup_semaphores();
-    #ifdef DEBUG   
-    std::cout << "Core " << core_id << " Number of Noises: "  << noises.size() << " Total Delay: " << total_delay << " Max Delay: " << max_delay << std::endl;
-    std::cout << "Core " << core_id << " Total Oversleep: " << total_oversleep << " Average Oversleep: " << total_oversleep/sleeps << " Max Oversleep: " << max_oversleep << std::endl;
-    std::cout << "Exiting cpuoccupy for cpu " << core_id << "\n";
+    #ifdef DEBUG
+    std::cout << "Core " << core_id 
+        << " (Number of Noises: " << noises.size() 
+        << ") (Total Delay: " << total_delay 
+        << ") (Average Delay: " << static_cast<double>(total_delay) / noises.size() 
+        << ") (Max Delay: " << max_delay 
+        << ")" <<std::endl;
+    
+    std::cout << "Core " << core_id 
+        << " (Total Oversleep: " << total_oversleep 
+        << ") (Average Oversleep: " << static_cast<double>(total_oversleep)/sleeps 
+        << ") (Max Oversleep: " << max_oversleep 
+        << ")" << std::endl;
     #endif
     return EXIT_SUCCESS;
 }
