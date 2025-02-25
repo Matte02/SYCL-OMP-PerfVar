@@ -152,14 +152,14 @@ int parseJSON(std::vector<Noise>& noise_schedule, const std::string& json_file, 
     file.close();
 
     if (config.contains(core_id)) {
-        Noise previous = {0,0};
+        Noise previous = {-1,-1};
         for (const auto& entry : config[core_id]) {
             Noise noise = {entry[0].get<signed long long>(), entry[1].get<signed long long>()};
             if (previous.start_time < noise.start_time) {
                 noise_schedule.push_back(noise);
                 
             } else {
-                std::cerr << "Error: Noise not in cronological order." << std::endl;
+                std::cerr << "Error (" << core_id << "): Noise not in cronological order. Previous Noise start: " << previous.start_time << "Current Start Time: "<<noise.start_time <<  std::endl;
             }
             previous = noise;
         }
