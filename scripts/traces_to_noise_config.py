@@ -92,7 +92,7 @@ def main():
                     worsttrace[0][cpu][task] = worsttrace[0][cpu][task][:closestidx] + worsttrace[0][cpu][task][closestidx+1:]
                 else: 
                     worsttrace[0][cpu][task][closestidx] = (worsttrace[0][cpu][task][closestidx][1], worsttrace[0][cpu][task][closestidx][1]-duration)
-                   
+     
     #Approximate average inherent noise has now been removed from worst case trace
 
     #Seperate workload from noise and remove unnecessary noise information (taskname)
@@ -172,27 +172,36 @@ def getcpudict(file):
 
 
     # Initialize variables to store the extracted values
-    total_duration = None
-    second_start_time = None
+    total_duration = -1
+    second_start_time = -1
     if file.endswith(".trace"): 
         #Fetch duration of workload
         with open(tracepath+"/"+file[:len(file)-6]+".benchout", "r") as lines:
             for line in lines:
+                #dur = durationre.match(line)
+                #if dur != None:
+                #    dur = dur.group(0)[10:]
+                #    dur = dur.split(".")
+                #    dur = int(dur[0]+dur[1])
+                #    break
                 # Match and extract the total duration
                 dur_match = duration_re.match(line)
-                if dur_match:
-                    total_duration = dur_match.group(1)
-                    total_duration = int(float(total_duration) * 1e9)  # Convert to nanoseconds
+                if dur_match != None:
+                    total_duration = dur_match.group(0)[16:len(dur_match.group(0))-8].split(".")
+                    total_duration = int(total_duration[0]+total_duration[1])  # Convert to nanoseconds
+                    print("Duration")
+                    print(total_duration)
 
                 # Match and extract the second start time
                 start_match = start_time_re.match(line)
-                if start_match:
-                    if second_start_time is None:
+                if start_match != None:
+                    if second_start_time == -1:
                         # Skip the first start time
-                        second_start_time = -1
+                        second_start_time = -2
                     else:
-                        second_start_time = start_match.group(1)
-                        second_start_time = int(float(second_start_time) * 1e9)  # Convert to nanoseconds
+                        print(start_match.group(0))
+                        second_start_time = start_match.group(0)[16:len(start_match.group(0))-8].split(".")
+                        second_start_time = int(second_start_time[0]+second_start_time[1])  # Convert to nanoseconds
                     
         #Dict(CPU,Dict(task,[(start,duration)]))
         cpudict: dict[int, dict[str, list[(int, int)]]]#= dict({'NULL': dict({'NULL': []})})
