@@ -34,7 +34,6 @@ def main():
     #Contains list of all traces cpudict with duration attached
     tracelist: list[(dict[int, dict[str, list[(int, int)]]], int)]
     tracelist = list()
-    print(rawtracefiles)
     tracelist = pool.map(getcpudict, rawtracefiles)
 
     print("Number of traces:")
@@ -42,10 +41,6 @@ def main():
 
     #Fetch worst case trace
     worsttrace = max(tracelist, key=lambda x: int(x[1]))
-
-    json_string = json.dumps(worsttrace[0], indent=4) 
-    with open("noise_configWC.json", "w") as f:
-        f.write(json_string)  
 
     print("Worst trace duration:")
     print(max(tracelist, key=lambda x: int(x[1]))[1])
@@ -63,10 +58,6 @@ def main():
                     averagedict[cpu][task] = list()
                 averagedict[cpu][task] = averagedict[cpu][task] + timinglist
 
-    json_string = json.dumps(averagedict, indent=4) 
-    with open("noise_configAC.json", "w") as f:
-        f.write(json_string)  
-
     #Set duration of task as average of all task on the same cpu
     for cpu, tasks in averagedict.items():
         for task, timinglist in tasks.items():
@@ -83,10 +74,6 @@ def main():
             averageduration = int(averageduration / len(timinglist))
             #Add average amount of occurences of task to list  
             averagedict[cpu][task] = list(map(lambda x: (x[0], averageduration), averageoccurencelist))
-    
-    json_string = json.dumps(averagedict, indent=4) 
-    with open("noise_configACD.json", "w") as f:
-        f.write(json_string) 
 
     #Try to remove average inherent noise from worst case trace
     worsttracenoinherent: dict[int, dict[str, list[(int, int)]]]
@@ -97,16 +84,11 @@ def main():
                 if len(worsttrace[0][cpu][task]) <= 0:
                     break
                 closestidx = min(range(len(worsttrace[0][cpu][task])), key=lambda i: abs(worsttrace[0][cpu][task][i][1]-duration))
-                print(closestidx)
-                print(worsttrace[0][cpu][task][closestidx][1])
                 if worsttrace[0][cpu][task][closestidx][1] - duration < 0: 
                     worsttrace[0][cpu][task] = worsttrace[0][cpu][task][:closestidx] + worsttrace[0][cpu][task][closestidx+1:]
                 else: 
                     worsttrace[0][cpu][task][closestidx] = (worsttrace[0][cpu][task][closestidx][0], worsttrace[0][cpu][task][closestidx][1]-duration)
 
-    json_string = json.dumps(worsttrace[0], indent=4) 
-    with open("noise_configWCAC.json", "w") as f:
-        f.write(json_string)
     #Approximate average inherent noise has now been removed from worst case trace
 
     #Seperate workload from noise and remove unnecessary noise information (taskname)
@@ -134,10 +116,10 @@ def main():
         nextduration = -1
         nextstart = -1
         for noise in noises:
-            print("Combine?")
-            print(nextstart)
-            print(nextduration)
-            print(noise)
+            #print("Combine?")
+            #print(nextstart)
+            #print(nextduration)
+            #print(noise)
             #Make the start of the workload be time instant 0
             noise = (noise[0]-syncstartdiff, noise[1])
             #Remove noises started before starting point
@@ -150,7 +132,7 @@ def main():
             else: 
                 #Check if starttime is during an execution of another noise. If yes, combine.
                 if nextstart+nextduration >= noise[0]:
-                    print("Combine")
+                    #print("Combine")
                     nextduration += noise[1]
                 else:
                     combinednoises.append((nextstart, nextduration))
@@ -160,8 +142,6 @@ def main():
         combinednoises.append((nextstart, nextduration))
         noisedict[cpu] = combinednoises 
 
-    print("SyncStartDiff")
-    print(syncstartdiff)
     #Write output to json
     json_string = json.dumps(noisedict, indent=4) 
     with open("noise_config.json", "w") as f:
@@ -194,19 +174,11 @@ def getcpudict(file):
         #Fetch duration of workload
         with open(tracepath+"/"+file[:len(file)-6]+".benchout", "r") as lines:
             for line in lines:
-                #dur = durationre.match(line)
-                #if dur != None:
-                #    dur = dur.group(0)[10:]
-                #    dur = dur.split(".")
-                #    dur = int(dur[0]+dur[1])
-                #    break
                 # Match and extract the total duration
                 dur_match = duration_re.match(line)
                 if dur_match != None:
                     total_duration = dur_match.group(0)[16:len(dur_match.group(0))-8].split(".")
                     total_duration = int(total_duration[0]+total_duration[1])  # Convert to nanoseconds
-                    print("Duration")
-                    print(total_duration)
 
                 # Match and extract the second start time
                 start_match = start_time_re.match(line)
@@ -215,7 +187,6 @@ def getcpudict(file):
                         # Skip the first start time
                         second_start_time = -2
                     else:
-                        print(start_match.group(0))
                         second_start_time = start_match.group(0)[16:len(start_match.group(0))-8].split(".")
                         second_start_time = int(second_start_time[0]+second_start_time[1])  # Convert to nanoseconds
                     
@@ -260,7 +231,7 @@ def getcpudict(file):
                 else:
                     cpudict[cpu] = dict({task: [(start,duration)]})
         
-        #Sort all tasks based on start time
+        #Sort all tasks based on start time (again)
         for cpu, tasks in cpudict.items():
             for task, timinglist in tasks.items():
                 cpudict[cpu][task] = sort_task_start((task, timinglist))[1]
