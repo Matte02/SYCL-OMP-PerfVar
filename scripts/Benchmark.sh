@@ -4,9 +4,9 @@
 SYSTEM="Chris"  # System name
 OSNOISEPATH="/sys/kernel/tracing"  # Path to osnoise tracer
 CURPATH="$PWD"  # Current working directory
-ITER=1000  # Number of iterations per benchmark
+ITER=1  # Number of iterations per benchmark
 TRACE=1  # Enable/disable tracing (1 = enabled, 0 = disabled)
-INJECT_NOISE_VALUE="no"  # Enable/disable noise injection (yes/no)
+INJECT_NOISE_VALUE="yes"  # Enable/disable noise injection (yes/no)
 
 
 # Benchmark parameters (default values)
@@ -22,9 +22,8 @@ MINIFE_PARAMS="-nx 128 -ny 128 -nz 128"
 if [ "$INJECT_NOISE_VALUE" = "yes" ]; then
     echo "Noise injection is enabled. Using noise injection parameters."
     key_count=$(jq 'length' ../noiseinjector/noise_config.json)
-    NBODY_PARAMS="10000 1000 $key_count"  # Update NBODY_PARAMS for noise injection
     benches=("nbody")
-    benchparameters=("$NBODY_PARAMS")
+    benchparameters=("$NBODY_PARAMS $key_count")
     binname=("main")
     frameworks=("omp" "sycl")
     #This should ensure that we are able to reach 100% utilization for the realtime processes
@@ -104,7 +103,12 @@ for bench in ${benches[@]}; do
                 cd "$benchpath/$curbench/${makefilepath[$benchidx]}" || exit 1
             fi
             #Wait for all child processes to finish
-            wait  $benchmark_pid $noise_pid
+            wait  $benchmark_pid
+
+            if [ "$INJECT_NOISE_VALUE" = "yes" ]; then
+                kill -SIGTERM $noise_pid
+                wait $noise_pid
+            fi
             # Disable tracing if specified
             if [ $TRACE -eq 1 ]; then
                 echo 0 > "$OSNOISEPATH/tracing_on"

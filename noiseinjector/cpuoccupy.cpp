@@ -26,6 +26,8 @@ static void handler(int sig, siginfo_t *si, void *uc) {
 }
 #endif
 
+bool should_exit = false;
+
 int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::string core_id) {
     //Set seed
     int seed = rand();
@@ -75,76 +77,76 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::st
 
     // Sync up all processes to start at the same time.
     wait_for_barrier(number_of_processes);
+    #ifdef LOOP
+    while(!should_exit){
+    #endif
+        auto total_delay = 0;
+        auto max_delay = 0;
+        auto max_oversleep = 0;
+        auto total_oversleep = 0;
+        auto sleeps = 0;
+        struct timespec start_t, rem_t;
+        // Record the program's absolute start time
+        auto program_start_time = std::chrono::high_resolution_clock::now();
 
-    // Record the program's absolute start time
-    auto program_start_time = std::chrono::high_resolution_clock::now();
-    auto total_delay = 0;
-    auto max_delay = 0;
-    auto max_oversleep = 0;
-    auto total_oversleep = 0;
-    auto sleeps = 0;
-    struct timespec start_t, rem_t;
+        for (const auto& noise : noises) {
+            // Calculate relative wait time for this noise
+            auto current_time = std::chrono::high_resolution_clock::now();
+            auto wait_time = std::chrono::duration<signed long long, std::nano>(noise.start_time) -
+                            std::chrono::duration_cast<std::chrono::duration<double, std::nano>>(current_time - program_start_time);
 
-    for (const auto& noise : noises) {
-        // Calculate relative wait time for this noise
-        auto current_time = std::chrono::high_resolution_clock::now();
-        auto wait_time = std::chrono::duration<signed long long, std::nano>(noise.start_time) -
-                         std::chrono::duration_cast<std::chrono::duration<double, std::nano>>(current_time - program_start_time);
+            // Sleep until the start time for this noise
+            if (wait_time.count() > 0) {
 
-        // Sleep until the start time for this noise
-        if (wait_time.count() > 0) {
+                #ifdef USE_TIMER
+                /* Start the timer */
+                its.it_value.tv_sec = std::floor(wait_time.count() / 1e9);
+                its.it_value.tv_nsec = std::fmod(wait_time.count(), 1e9);
+                its.it_interval.tv_sec = its.it_value.tv_sec;
+                its.it_interval.tv_nsec = its.it_value.tv_nsec;
+                if (timer_settime(timerid, 0, &its, NULL) == -1) {
+                    perror("timer_settime");
+                    std::cout << "E" <<std::endl;
+                    exit(EXIT_FAILURE);
+                }
+                //Pause until SIGCONT
+                pause();
 
-            #ifdef USE_TIMER
-            /* Start the timer */
-            its.it_value.tv_sec = std::floor(wait_time.count() / 1e9);
-            its.it_value.tv_nsec = std::fmod(wait_time.count(), 1e9);
-            its.it_interval.tv_sec = its.it_value.tv_sec;
-            its.it_interval.tv_nsec = its.it_value.tv_nsec;
-            if (timer_settime(timerid, 0, &its, NULL) == -1) {
-                perror("timer_settime");
-                std::cout << "E" <<std::endl;
-                exit(EXIT_FAILURE);
-            }
-            //Pause until SIGCONT
-            pause();
+                #else
 
-            #else
-
-            start_t.tv_sec = std::floor(wait_time.count() / 1e9);
-            start_t.tv_nsec = std::fmod(wait_time.count(), 1e9);
-            //while (clock_nanosleep(CLOCK_MONOTONIC, 0, &start_t, &rem_t) != 0) {
-            while (nanosleep(&start_t, &rem_t) != 0) {
-                start_t.tv_sec = rem_t.tv_sec;
-                start_t.tv_nsec = rem_t.tv_nsec;
-            }
-            #ifdef DEBUG
-            sleeps++;
-            auto wakeup_delay = std::chrono::duration<signed long long, std::nano>(noise.start_time) -
-                         std::chrono::duration_cast<std::chrono::duration<double, std::nano>>(std::chrono::high_resolution_clock::now() - program_start_time);
-            if(wakeup_delay.count() > 0) {
-                std::cout << "Core " << core_id << "CPU OCCUPY WOKE UP TOO SOON: " << wakeup_delay.count() << std::endl;
+                start_t.tv_sec = std::floor(wait_time.count() / 1e9);
+                start_t.tv_nsec = std::fmod(wait_time.count(), 1e9);
+                //while (clock_nanosleep(CLOCK_MONOTONIC, 0, &start_t, &rem_t) != 0) {
+                while (nanosleep(&start_t, &rem_t) != 0) {
+                    start_t.tv_sec = rem_t.tv_sec;
+                    start_t.tv_nsec = rem_t.tv_nsec;
+                }
+                #ifdef DEBUG
+                sleeps++;
+                auto wakeup_delay = std::chrono::duration<signed long long, std::nano>(noise.start_time) -
+                            std::chrono::duration_cast<std::chrono::duration<double, std::nano>>(std::chrono::high_resolution_clock::now() - program_start_time);
+                if(wakeup_delay.count() > 0) {
+                    std::cout << "Core " << core_id << "CPU OCCUPY WOKE UP TOO SOON: " << wakeup_delay.count() << std::endl;
+                } else {
+                    total_oversleep += wakeup_delay.count();
+                    max_oversleep = (wakeup_delay.count() < max_oversleep) ? wakeup_delay.count() : max_oversleep;  
+                }
+                #endif
+                #endif
             } else {
-                total_oversleep += wakeup_delay.count();
-                max_oversleep = (wakeup_delay.count() < max_oversleep) ? wakeup_delay.count() : max_oversleep;  
+                //Count amount of time current time overshoots noise start_time
+                max_delay = (wait_time.count() < max_delay) ? wait_time.count() : max_delay;
+                total_delay += wait_time.count();
             }
-            #endif
-            #endif
-        } else {
-            //Count amount of time current time overshoots noise start_time
-            max_delay = (wait_time.count() < max_delay) ? wait_time.count() : max_delay;
-            total_delay += wait_time.count();
-        }
 
-        // Simulate CPU load for this noise duration
-        current_time = std::chrono::high_resolution_clock::now();
-        auto end_time = std::chrono::duration<signed long long, std::nano>(noise.duration) + current_time;
+            // Simulate CPU load for this noise duration
+            current_time = std::chrono::high_resolution_clock::now();
+            auto end_time = std::chrono::duration<signed long long, std::nano>(noise.duration) + current_time;
 
-        while (std::chrono::high_resolution_clock::now() < end_time) {
-            volatile double work = seed % 1000 + 1; // Dummy work
+            while (std::chrono::high_resolution_clock::now() < end_time) {
+                volatile double work = seed % 1000 + 1; // Dummy work
+            }
         }
-    }
-    // Close semaphores
-    cleanup_semaphores();
     #ifdef DEBUG
     std::cout << "Core " << core_id 
         << " (Number of Noises: " << noises.size() 
@@ -159,6 +161,11 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::st
         << ") (Max Oversleep: " << max_oversleep 
         << ")" << std::endl;
     #endif
+    #ifdef LOOP
+    }
+    #endif
+    // Close semaphores
+    cleanup_semaphores();
     return EXIT_SUCCESS;
 }
 
@@ -197,11 +204,18 @@ int parseJSON(std::vector<Noise>& noise_schedule, const std::string& json_file, 
     return EXIT_SUCCESS;
 }
 
+void termHandler( int signum ) {
+   should_exit = true;
+   std::cout << "KILL" <<std::endl;
+   return;
+}
+
 int main(int argc, char* argv[]) {
     if (argc < 4) {
         std::cerr << "Usage: " << argv[0] << " <json_file> <core_id> <number_of_processes>" << std::endl;
         return EXIT_FAILURE;
     }
+    signal(SIGTERM, termHandler);  
 
     std::string json_file = argv[1];
     std::string core_id = argv[2];
