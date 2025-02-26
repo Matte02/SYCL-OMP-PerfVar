@@ -1,3 +1,8 @@
+# Log Folder
+logs/
+*.x
+.vscode
+*.yaml
 VTuneProj/
 
 #Tracefiles
