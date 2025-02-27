@@ -2,6 +2,9 @@ import subprocess
 import sys
 import os
 import argparse
+import signal
+import atexit
+import time
 
 NOISE_INJECTOR_FOLDER_PATH = "../noiseinjector"
 
@@ -21,9 +24,6 @@ def run_cpuoccupy_parallel(json_file, verbose=False, no_benchmark=False, any_cor
     """
     Run cpuoccupy processes in parallel, one for each core defined in the JSON file.
     """
-
-
-
     # Check if the JSON file exists
     if not os.path.exists(json_file):
         print(f"Error: JSON file not found: {json_file}")
@@ -56,7 +56,6 @@ def run_cpuoccupy_parallel(json_file, verbose=False, no_benchmark=False, any_cor
             print(f"Error: Core ID {core_id} is invalid. This system has only {available_cores} cores.")
             sys.exit(1)
 
-    processes_list = []
     num_processes = len(core_ids) if no_benchmark else len(core_ids) + 1
     print(f"Num of processes (should be number of cores({num_cores_in_json}) + 1): {num_processes}")
     for core_id in core_ids:
@@ -70,7 +69,7 @@ def run_cpuoccupy_parallel(json_file, verbose=False, no_benchmark=False, any_cor
 
         # Start the process in parallel
         try:
-            process = subprocess.Popen(command, shell=True)
+            process = subprocess.Popen(command, shell=True, preexec_fn=os.setsid)
             processes_list.append((process, core_id))
         except Exception as e:
             print(f"Failed to start process on core {core_id}: {e}")
@@ -81,6 +80,13 @@ def run_cpuoccupy_parallel(json_file, verbose=False, no_benchmark=False, any_cor
         process.wait()
         if verbose:
             print(f"Process on core {core_id} finished.")
+
+processes_list = []
+def cleanup(signum, frame):
+    print("CLEANUP")
+    for p, coreid in processes_list:
+        os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+    sys.exit(0)
 
 def main():
     parser = argparse.ArgumentParser(description="Run cpuoccupy on multiple cores in parallel using a single JSON configuration.")
@@ -100,4 +106,6 @@ def main():
     run_cpuoccupy_parallel(args.json_file, args.verbose, args.no_benchmark, args.any_core)
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, cleanup)
     main()
+
