@@ -117,6 +117,8 @@ void parse_num_processes(int argc, char** argv) {
 
 int main(int argc, char** argv) {
   #ifdef NOISE
+
+  cleanup_semaphores();
   // Parse num_of_processes only if NOISE is enabled
   parse_num_processes(argc, argv);
   std::cout << "Num of processes:" << num_of_processes << std::endl;

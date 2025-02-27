@@ -16,6 +16,7 @@
 
 int main(int argc, char** argv) {
   #ifdef NOISE
+  cleanup_semaphores();
   if (argc >= 4) {
     int num_of_other_processes = std::atoi(argv[3]);
     init_semaphores();

@@ -363,6 +363,7 @@ int main(int argc, char *argv[])
 {
   parseArguments(argc, argv);
   #ifdef NOISE
+    cleanup_semaphores();
     init_semaphores();
     wait_for_barrier(num_of_processes + 1);
   #endif
