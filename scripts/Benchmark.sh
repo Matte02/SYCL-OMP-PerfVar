@@ -17,6 +17,11 @@ BABELSTREAM_PARAMS="-s 33554432 -n 10"
 #BABELSTREAM_PARAMS="-s 33554432"
 MINIFE_PARAMS="-nx 128 -ny 128 -nz 128"
 
+# Path to benchmarks
+benchpath="$CURPATH/../benchmarks"
+benchtime=$(date '+%d-%m-%Y-%H:%M:%S')
+logpath="$benchpath/logs/benchrun-$benchtime"
+mkdir -p "$logpath"
 
 # Noise injection configuration
 if [ "$INJECT_NOISE_VALUE" = "yes" ]; then
@@ -28,6 +33,10 @@ if [ "$INJECT_NOISE_VALUE" = "yes" ]; then
     frameworks=("omp" "sycl")
     #This should ensure that we are able to reach 100% utilization for the realtime processes
     echo 1000000 > /proc/sys/kernel/sched_rt_runtime_us
+
+    noise_config_file="$CURPATH/../noiseinjector/noise_config.json"
+    echo "Copy Noise config file at: $noise_config_file to $logpath"
+    cp  "$noise_config_file" "$logpath/"
 else
     echo "Noise injection is disabled. Using default parameters."
     benches=("nbody" "babelstream" "miniFE")
