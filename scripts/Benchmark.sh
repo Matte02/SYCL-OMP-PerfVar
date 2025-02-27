@@ -58,9 +58,20 @@ echo "mono_raw" > "$OSNOISEPATH/trace_clock"
 
 # TODO: Make the common makefile here
 
-# Path to benchmarks
-benchpath="$CURPATH/../benchmarks"
-benchtime=$(date '+%d-%m-%Y-%H:%M:%S')
+
+# Define a cleanup function
+cleanup() {
+    echo "Cleaning up..."
+    if [ -n "$noise_pid" ]; then
+        echo "Killing noise injection process with PID: $noise_pid"
+        kill -SIGTERM "$noise_pid"
+        wait "$noise_pid"  # Wait for the noise process to terminate
+    fi
+    exit 0
+}
+
+# Trap SIGINT (Ctrl + C) signal
+trap cleanup SIGINT
 
 #Loop thorugh all benches, versions, and iterations
 benchidx=-1
