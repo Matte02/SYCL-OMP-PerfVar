@@ -127,27 +127,33 @@ def generate_plots(df, output_dir):
     plt.savefig(os.path.join(output_dir, 'all_cores_distribution_plots.png'))
     plt.close()
 
-def main(file_path):
+def main(folder_path):
     # Determine the output directory (same as the input file's directory)
-    output_dir = os.path.dirname(file_path)
+    output_dir = folder_path
     if output_dir == "":
-        output_dir = "."  # Use current directory if file is in the same folder
+        output_dir = "."  # Use current directory if folder is empty
 
     # Create the output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
 
-    # Parse the data
-    df = parse_data(file_path)
+    # Find and process all .noiseout files in the specified folder
+    for filename in os.listdir(folder_path):
+        if filename.endswith('.noiseout'):
+            file_path = os.path.join(folder_path, filename)
+            print(f"Processing file: {file_path}")
 
-    # Generate and save plots
-    generate_plots(df, output_dir)
+            # Parse the data
+            df = parse_data(file_path)
 
-    print(f"Plots saved in the directory: '{output_dir}'")
+            # Generate and save plots
+            generate_plots(df, output_dir)
+
+            print(f"Plots saved in the directory: '{output_dir}'")
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: python noise_graphs.py <path_to_data_file>")
+        print("Usage: python noise_graphs.py <path_to_folder>")
         sys.exit(1)
     
-    file_path = sys.argv[1]
-    main(file_path)
+    folder_path = sys.argv[1]
+    main(folder_path)
