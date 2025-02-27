@@ -20,8 +20,8 @@ MINIFE_PARAMS="-nx 128 -ny 128 -nz 128"
 # Path to benchmarks
 benchpath="$CURPATH/../benchmarks"
 benchtime=$(date '+%d-%m-%Y-%H:%M:%S')
-logpath="$benchpath/logs/benchrun-$benchtime"
-mkdir -p "$logpath"
+logfolderpath="$benchpath/logs/benchrun-$benchtime"
+mkdir -p "$logfolderpath"
 
 # Noise injection configuration
 if [ "$INJECT_NOISE_VALUE" = "yes" ]; then
@@ -35,8 +35,10 @@ if [ "$INJECT_NOISE_VALUE" = "yes" ]; then
     echo 1000000 > /proc/sys/kernel/sched_rt_runtime_us
 
     noise_config_file="$CURPATH/../noiseinjector/noise_config.json"
-    echo "Copy Noise config file at: $noise_config_file to $logpath"
-    cp  "$noise_config_file" "$logpath/"
+    echo "Copy Noise config file at: $noise_config_file to $logfolderpath"
+    cp  "$noise_config_file" "$logfolderpath/"
+
+    python3 "$CURPATH/noise_json_file_graphs.py" "$logfolderpath/noise_config.json"
 else
     echo "Noise injection is disabled. Using default parameters."
     benches=("nbody" "babelstream" "miniFE")
@@ -89,7 +91,7 @@ for bench in ${benches[@]}; do
         params=${benchparameters[$benchidx]}
 
         # Create log directory
-        logpath="$benchpath/logs/benchrun-$benchtime/$curbench"
+        logpath="$logfolderpath/$curbench"
         mkdir -p "$logpath"
         echo "Log path: $logpath"
         echo "Start: $curbench"
@@ -140,7 +142,9 @@ for bench in ${benches[@]}; do
             echo "Input params: $params" >> "$logpath/$curbench-$TRACECOUNT-$SYSTEM.benchout"
             echo "Noise injector was enabled? A: $INJECT_NOISE_VALUE" >> "$logpath/$curbench-$TRACECOUNT-$SYSTEM.benchout"
         done
-        
+        if [ "$INJECT_NOISE_VALUE" = "yes" ]; then
+            python3 "$CURPATH/noise_graphs.py" "$logpath"
+        fi
         echo "End: $curbench"
     done
 done
