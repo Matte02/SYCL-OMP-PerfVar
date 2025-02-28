@@ -49,9 +49,7 @@ for i in "$@"; do
         cp  "$noise_config_file" "$logfolderpath/"
         key_count=$(jq 'length' $logfolderpath/noise_config.json)
         for k in "${!benchparameters[@]}"; do
-            echo ${benchparameters[*]}
             benchparameters[$k]="${benchparameters[$k]} $key_count"
-            echo ${benchparameters[*]}
         done
         #This should ensure that we are able to reach 100% utilization for the realtime processes
         echo 1000000 > /proc/sys/kernel/sched_rt_runtime_us
