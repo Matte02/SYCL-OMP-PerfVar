@@ -1,244 +1,309 @@
-import os 
-from os import walk
-import matplotlib.pyplot as plt
-import matplotlib.pyplot as plt
-import numpy as np
+import os
 import sys
-import locale
 import re
+import argparse
 from multiprocessing import Pool
 import json
-from functools import reduce
 
-#TODO: Parallelize/ combine for loops. Handle edge cases gracefully
+# Constants
+DEFAULT_WORKLOAD_NAME = "main"
+DEFAULT_OUTPUT_FILENAME = "noise_config.json"
+DEFAULT_MERGE_THRESHOLD = 0
 
-#Usage: Arg 1 contains the path to the trace folder. Arg 2 contains workload name eg "main"
-def main(): 
-    if len(sys.argv) < 3:
-        print('Workload task name not specified. Defaulting to "main"')
-        workloadtaskname="main"
-    else: 
-        workloadtaskname=sys.argv[2] 
+def parse_arguments():
+    """
+    Parse and handle command-line arguments using argparse.
 
+    Returns:
+        Namespace: Parsed arguments as an object.
+    """
+    parser = argparse.ArgumentParser(
+        description="Process trace files and compute noise configurations."
+    )
+
+    # Positional argument for the trace folder path
+    parser.add_argument(
+        "trace_folder_path", 
+        type=str,
+        help="Path to the folder containing trace files."
+    )
+
+    # Optional argument for workload name (defaults to 'main')
+    parser.add_argument(
+        "-w", "--workload_name", 
+        type=str, 
+        default=DEFAULT_WORKLOAD_NAME, 
+        help="Name of the workload task (default: 'main')."
+    )
+
+    # Optional argument for output filename (defaults to 'noise_config.json')
+    parser.add_argument(
+        "-o", "--output_filename", 
+        type=str, 
+        default=DEFAULT_OUTPUT_FILENAME, 
+        help="Output filename for storing noise configuration (default: 'noise_config.json')."
+    )
+
+    # Optional argument for the merge threshold (defaults to 0)
+    parser.add_argument(
+        "-m", "--merge_threshold", 
+        type=int, 
+        default=DEFAULT_MERGE_THRESHOLD, 
+        help="Time gap in nanoseconds to consider two consecutive noise events as the same (default: 0)."
+    )
+
+    return parser.parse_args()
+
+def main():
+    # Parse command-line arguments
+    args = parse_arguments()
+
+    # Path to trace files
+    trace_path = os.path.normpath(args.trace_folder_path)
+
+    # Gather all raw trace files in the specified directory
+    raw_trace_files = [file for file in os.listdir(trace_path) if file.endswith(".trace")]
+    raw_trace_files.sort(key=lambda file: int(file.split("-")[2]))  # Sort by trace number
+
+    # Create a multiprocessing pool to process traces in parallel
     pool = Pool()
+
+    # Process all trace files into a list of trace data
+    trace_list = pool.starmap(get_cpu_dict, [(file, trace_path) for file in raw_trace_files])
+
+    print(f"Number of traces: {len(trace_list)}")
+
+    # Find the worst trace (one with the maximum duration)
+    worst_trace = max(trace_list, key=lambda x: x[1])
+    print(f"Worst trace duration: {worst_trace[1]}")
+
+    # Compute average trace to filter out inherent noise
+    average_dict = compute_average_trace(trace_list)
     
-    tracepath=os.path.normpath(sys.argv[1])
+    # Clean the worst trace by removing average noise
+    clean_worst_trace(worst_trace[0], average_dict)
 
-    rawtracefiles = list()
-    for file in os.listdir(tracepath):
-        if file.endswith(".trace"): 
-            rawtracefiles.append(file)
-
-    rawtracefiles = sorted(rawtracefiles, key=lambda file: int(file.split("-")[2]))
-
-    #Contains list of all traces cpudict with duration attached
-    tracelist: list[(dict[int, dict[str, list[(int, int)]]], int)]
-    tracelist = list()
-    tracelist = pool.map(getcpudict, rawtracefiles)
-
-    print("Number of traces:")
-    print(len(tracelist))
-
-    #Fetch worst case trace
-    worsttrace = max(tracelist, key=lambda x: int(x[1]))
-
-    print("Worst trace duration:")
-    print(max(tracelist, key=lambda x: int(x[1]))[1])
-
-    #Create average trace
-    averagedict: dict[int, dict[str, list[(int, int)]]]
-    averagedict = dict()
-    #Gather all tasks
-    for trace in tracelist:
-        for cpu, tasks in trace[0].items():
-            for task, timinglist in tasks.items():
-                if not cpu in averagedict: 
-                    averagedict[cpu] = dict()
-                if not task in averagedict[cpu]:
-                    averagedict[cpu][task] = list()
-                averagedict[cpu][task] = averagedict[cpu][task] + timinglist
-
-    #Set duration of task as average of all task on the same cpu
-    for cpu, tasks in averagedict.items():
-        for task, timinglist in tasks.items():
-            averageduration = 0
-            averageoccurencelist = list()
-            i = 0
-            
-            for (timing, duration) in timinglist:
-                averageduration += duration
-                if i%len(tracelist) == 0:
-                    averageoccurencelist.append((timing, duration))
-                i += 1
-            #Set average duration of task    
-            averageduration = int(averageduration / len(timinglist))
-            #Add average amount of occurences of task to list  
-            averagedict[cpu][task] = list(map(lambda x: (x[0], averageduration), averageoccurencelist))
-
-    #Try to remove average inherent noise from worst case trace
-    worsttracenoinherent: dict[int, dict[str, list[(int, int)]]]
-    worsttracenoinherent = dict()
-    for cpu, tasks in worsttrace[0].items():
-        for task, timinglist in tasks.items():
-            for (timing, duration) in averagedict[cpu][task]:
-                if len(worsttrace[0][cpu][task]) <= 0:
-                    break
-                closestidx = min(range(len(worsttrace[0][cpu][task])), key=lambda i: abs(worsttrace[0][cpu][task][i][1]-duration))
-                if worsttrace[0][cpu][task][closestidx][1] - duration < 0: 
-                    worsttrace[0][cpu][task] = worsttrace[0][cpu][task][:closestidx] + worsttrace[0][cpu][task][closestidx+1:]
-                else: 
-                    worsttrace[0][cpu][task][closestidx] = (worsttrace[0][cpu][task][closestidx][0], worsttrace[0][cpu][task][closestidx][1]-duration)
-
-    #Approximate average inherent noise has now been removed from worst case trace
-
-    #Seperate workload from noise and remove unnecessary noise information (taskname)
-    cpudict = worsttrace[0]
-    noisedict = dict()
-    workloadexec = []
-    for cpu, tasks in cpudict.items():
-        noise = []
-        for task, timinglist in tasks.items():
-            if task != workloadtaskname:
-                noise.extend(timinglist)
-            else:
-                workloadexec.extend(timinglist)
-        noise = sorted(noise, key=lambda tup: tup[0])
-        noisedict[cpu] = noise
+    # Separate the workload execution from the noise traces
+    noise_dict, workload_exec = seperate_traces(worst_trace[0], args.workload_name)
+    workload_exec.sort(key=lambda tup: tup[0])  # Sort by start time
     
-    workloadexec = sorted(workloadexec, key=lambda tup: tup[0])
+    # Synchronize the start time of the workload with the noise traces
+    sync_start_diff = workload_exec[0][0]
 
-    #Tries to align mono_raw and osnoise ("tlc") start clock 
-    syncstartdiff = workloadexec[0][0]
+    # Merge consecutive noise events into one continuous event using the provided merge threshold
+    combine_consecutive_noises(noise_dict, sync_start_diff, merge_threshold=args.merge_threshold)
 
-    #Combine several preempting noises into one consecutive noise
-    for cpu, noises in noisedict.items():
-        combinednoises = list()
-        nextduration = -1
-        nextstart = -1
+    # Write the processed noise data to the specified output JSON file
+    json_string = json.dumps(noise_dict, indent=4) 
+    with open(args.output_filename, "w") as f:
+        f.write(json_string)
+
+def combine_consecutive_noises(noise_dict, sync_start_diff, merge_threshold=0):
+    """
+    Merges consecutive or closely spaced noise occurrences into single continuous events.
+
+    Args:
+        noise_dict (dict): Dictionary mapping CPU IDs to lists of noise events (start time, duration).
+        sync_start_diff (int): Time offset to synchronize workload start to time 0.
+        merge_threshold (int): Time gap (in nanoseconds) within which two noises are considered close enough to merge.
+
+    Returns:
+        dict: Updated noise_dict with merged noise events.
+    """
+    for cpu, noises in noise_dict.items():
+        combined_noises = []
+        next_start = -1
+        next_duration = -1
+
         for noise in noises:
-            #print("Combine?")
-            #print(nextstart)
-            #print(nextduration)
-            #print(noise)
-            #Make the start of the workload be time instant 0
-            noise = (noise[0]-syncstartdiff, noise[1])
-            #Remove noises started before starting point
-            if noise[0] < 0: 
+            adjusted_start = noise[0] - sync_start_diff  # Adjust noise start time
+            duration = noise[1]
+
+            # Skip noise events starting before the synchronized start
+            if adjusted_start < 0: 
                 continue
-            #First noise
-            if nextstart == -1:
-                nextstart = noise[0]
-                nextduration = noise[1]
-            else: 
-                #Check if starttime is during an execution of another noise. If yes, combine.
-                if nextstart+nextduration >= noise[0]:
-                    #print("Combine")
-                    nextduration += noise[1]
+
+            # If no previous noise to combine, start a new combined event
+            if next_start == -1:
+                next_start = adjusted_start
+                next_duration = duration
+            else:
+                # If the current noise is close to the previous one, combine them
+                if next_start + next_duration + merge_threshold >= adjusted_start:
+                    next_duration += duration
                 else:
-                    combinednoises.append((nextstart, nextduration))
-                    nextstart = noise[0]
-                    nextduration = noise[1]
+                    # No overlap, add the previous noise event and reset
+                    combined_noises.append((next_start, next_duration))
+                    next_start = adjusted_start
+                    next_duration = duration
 
-        combinednoises.append((nextstart, nextduration))
-        noisedict[cpu] = combinednoises 
+        # Add the last combined noise event
+        combined_noises.append((next_start, next_duration))
+        noise_dict[cpu] = combined_noises
 
-    #Write output to json
-    json_string = json.dumps(noisedict, indent=4) 
-    with open("noise_config.json", "w") as f:
-        f.write(json_string) 
-
+    return noise_dict
 
 
+# Separates workload execution traces from noise traces.
+def seperate_traces(cpu_dict, workload_task_name):
+    """
+    Separates workload execution traces from noise traces.
 
-def getcpudict(file):
-    tracepath=os.path.normpath(sys.argv[1])
+    Args:
+        cpu_dict (dict): Dictionary of CPU traces with tasks and timings.
+        workload_task_name (str): The name of the task representing the workload.
 
-    numberre = re.compile("[0-9]*")
+    Returns:
+        tuple: A tuple containing:
+            - noise_dict (dict): A dictionary of noise traces for each CPU.
+            - workload_exec (list): A list of workload execution timings.
+    """
+    noise_dict = dict()
+    workload_exec = []
+
+    for cpu, tasks in cpu_dict.items():
+        noise = []
+
+        for task, timing_list in tasks.items():
+            if task == workload_task_name:
+                workload_exec.extend(timing_list) # Collect workload execution timings
+            else:
+                noise.extend(timing_list) # Collect noise timings
+
+        # Sort noise timings for this CPU
+        noise_dict[cpu] = sorted(noise, key=lambda tup: tup[0])
+
+    return noise_dict, workload_exec
+
+def clean_worst_trace(worst_trace, average_dict):
+    """
+    Removes the inherent average noise from the worst trace.
+
+    Args:
+        worst_trace (dict): The trace data for the worst trace (with CPU task timings).
+        average_dict (dict): The average trace data to filter out from the worst trace.
+    """
+    for cpu, tasks in worst_trace.items():
+        for task, timing_list in tasks.items():
+            for timing, duration in average_dict[cpu][task]:
+                if len(worst_trace[cpu][task]) <= 0:     # Skip if no data available
+                    break
+
+                # Find the closest matching duration in worst-case trace
+                closest_idx = min(
+                    range(len(worst_trace[cpu][task])), 
+                    key=lambda i: abs(worst_trace[cpu][task][i][1] - duration)
+                )
+
+                # Adjust or remove the closest matching entry
+                closest_timing, closest_duration = worst_trace[cpu][task][closest_idx]
+                if closest_duration - duration < 0:
+                    worst_trace[cpu][task] = (
+                        worst_trace[cpu][task][:closest_idx] + 
+                        worst_trace[cpu][task][closest_idx + 1:]
+                    )
+                else:
+                    worst_trace[cpu][task][closest_idx] = (closest_timing, closest_duration - duration)
+
+def compute_average_trace(trace_list):
+    """
+    Computes the average trace from a list of traces.
+
+    Args:
+        trace_list (list): A list of trace data tuples containing CPU task timings.
+
+    Returns:
+        dict: A dictionary containing the average timings for each CPU and task.
+    """
+
+    # Create average trace
+    average_dict: dict[int, dict[str, list[(int, int)]]]
+    average_dict = dict()
+    # Gather all tasks
+    for trace in trace_list:
+        for cpu, tasks in trace[0].items():
+            for task, timings in tasks.items():
+                average_dict.setdefault(cpu, {}).setdefault(task, []).extend(timings)
+
+    # Calculate the average duration for each task and CPU
+    for cpu, tasks in average_dict.items():
+        for task, timing_list in tasks.items():
+            total_duration = 0  # Sum of all durations for averaging
+            sampled_occurrences = []  # List to store sampled occurrences
+            
+            # Iterate over task timings and durations
+            for i, (timing, duration) in enumerate(timing_list):
+                total_duration += duration
+                # Sample occurrences at intervals based on trace_list length
+                if i % len(trace_list) == 0:
+                    sampled_occurrences.append((timing, duration))
+            
+            # Compute average duration for the task
+            average_duration = int(total_duration / len(timing_list))
+            
+            # Replace original task data with sampled occurrences and average duration
+            average_dict[cpu][task] = [(timing, average_duration) for timing, _ in sampled_occurrences]
+    return average_dict
+
+def get_cpu_dict(file, trace_path):
+    """
+    Parses a trace file and extracts relevant information for CPU traces.
+
+    Args:
+        file (str): The trace file name.
+        trace_path (str): The path to the directory containing the trace files.
+
+    Returns:
+        tuple: A tuple containing a dictionary of CPU traces and the total duration.
+    """
     
     # Define regular expressions for matching the total duration and the second start time
     duration_re = re.compile(r"Total Duration: (\d+\.\d+) seconds")
-    start_time_re = re.compile(r"Start time: (\d+\.\d+) seconds")
-    
-    commentre = re.compile("#")
-    starttlcre = re.compile("start [0-9.]*")
-    durationtlcre = re.compile("duration [0-9]*")
-    cpure = re.compile("\\[[0-9]{3}\\]")
-    #5258.924435: irq_noise: local_timer:236 start
-    taskre = re.compile("noise: .*:")
 
+    # Define Regex for matching traces
+    trace_regex = re.compile(
+        r"\[(\d{3})\]"                      # Capture CPU ID (three digits inside square brackets)
+        r".*?noise:\s*"                     # Lazily match everything up to 'noise:'
+        r"([^:]*[\/\w\-:]*|)"               # Capture the task name
+        r"\s+start\s+"                      # Match 'start' keyword with spaces
+        r"(\d+\.\d+)"                       # Capture the start time (floating-point number)
+        r"\s+duration\s+"                   # Match 'duration' keyword with spaces
+        r"(\d+)\s+ns"                       # Capture the duration (integer followed by 'ns')
+    )
 
-    # Initialize variables to store the extracted values
+    # Initialize variables to store the extracted values from benchout
     total_duration = -1
     second_start_time = -1
-    if file.endswith(".trace"): 
-        #Fetch duration of workload
-        with open(tracepath+"/"+file[:len(file)-6]+".benchout", "r") as lines:
-            for line in lines:
-                # Match and extract the total duration
-                dur_match = duration_re.match(line)
-                if dur_match != None:
-                    total_duration = dur_match.group(0)[16:len(dur_match.group(0))-8].split(".")
-                    total_duration = int(total_duration[0]+total_duration[1])  # Convert to nanoseconds
 
-                # Match and extract the second start time
-                start_match = start_time_re.match(line)
-                if start_match != None:
-                    if second_start_time == -1:
-                        # Skip the first start time
-                        second_start_time = -2
-                    else:
-                        second_start_time = start_match.group(0)[16:len(start_match.group(0))-8].split(".")
-                        second_start_time = int(second_start_time[0]+second_start_time[1])  # Convert to nanoseconds
-                    
+    if file.endswith(".trace"):
+        # Read total duration from .benchout file
+        with open(os.path.join(trace_path, file.replace(".trace", ".benchout")), "r") as lines:
+            for line in lines:
+                if (match := duration_re.match(line)):
+                    total_duration = int(match.group(1).replace(".", ""))
+    
+    
         #Dict(CPU,Dict(task,[(start,duration)]))
-        cpudict: dict[int, dict[str, list[(int, int)]]]#= dict({'NULL': dict({'NULL': []})})
-        cpudict = dict()
-
-        #Fill cpu dictionary
-        with open(tracepath+"/"+file, "r") as lines:
+        cpu_dict: dict[int, dict[str, list[(int, int)]]]#= dict({'NULL': dict({'NULL': []})})
+        cpu_dict = dict()
+        # Parse trace file
+        with open(os.path.join(trace_path, file), "r") as lines:
             for line in lines:
-                if commentre.match(line) != None:
-                    continue
-                cpu = cpure.search(line)
-                cpu = int(cpu.group(0)[1:len(cpu.group(0))-1])
-                start = starttlcre.search(line)
-                start = start.group(0)[6:]
-                tmp = start.split(".")
-                start = int(tmp[0]+tmp[1])
-                #Filter away noises before the start time
-                #if (start < second_start_time):
-                #    continue
+                if (match := trace_regex.search(line)):
+                    cpu_id = int(match[1])                      # CPU ID
+                    task = match[2].rsplit(":",1)[0] or "nmi"   # Task name
+                    start = int(float(match[3]) * 1e9)          # Start Time (ns)
+                    duration = int(match[4])                    # Duration (ns)
 
-                duration = durationtlcre.search(line)
-                duration = int(duration.group(0)[9:])
-                task = taskre.search(line)
+                    cpu_dict.setdefault(cpu_id, {}).setdefault(task, []).append((start, duration))
 
-                if task == None:
-                    task = "NMI"
-                else:
-                    task = task.group(0)[7:len(task.group(0))-1].strip()
-
-                cpuoldval = cpudict.get(cpu)
-                if cpuoldval != None:
-                    taskoldval = cpuoldval.get(task)        
-                    if taskoldval != None:
-                        taskoldval.append((start,duration))
-                        cpuoldval[task] = taskoldval
-                    else: 
-                        cpuoldval[task] = [(start,duration)]
-
-                    cpudict[cpu] = cpuoldval
-                else:
-                    cpudict[cpu] = dict({task: [(start,duration)]})
-        
         #Sort all tasks based on start time (again)
-        for cpu, tasks in cpudict.items():
-            for task, timinglist in tasks.items():
-                cpudict[cpu][task] = sort_task_start((task, timinglist))[1]
-        return (cpudict, total_duration)
+        for tasks in cpu_dict.values():
+            for task, timings in tasks.items():
+                tasks[task] = sorted(timings, key=lambda x: x[0])
 
-def sort_task_start(task):
-    return (task[0], sorted(task[1], key=lambda tup: int(tup[0])))
+        return (cpu_dict, total_duration)
+
 
 
 
