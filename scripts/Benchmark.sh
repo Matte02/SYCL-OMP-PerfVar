@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # Configuration
-SYSTEM="Chris"  # System name
+SYSTEM="matte"  # System name
 OSNOISEPATH="/sys/kernel/tracing"  # Path to osnoise tracer
 CURPATH="$PWD"  # Current working directory
-ITER=1000  # Number of iterations per benchmark
+ITER=5  # Number of iterations per benchmark
 TRACE=1  # Enable/disable tracing (1 = enabled, 0 = disabled)
 INJECT_NOISE_VALUE="no"  # Enable/disable noise injection (yes/no)
 key_count=$(jq 'length' ../noiseinjector/noise_config.json)
@@ -53,8 +53,8 @@ for i in "$@"; do
         done
         #This should ensure that we are able to reach 100% utilization for the realtime processes
         echo 1000000 > /proc/sys/kernel/sched_rt_runtime_us
-
-        python3 "$CURPATH/noise_json_file_graphs.py" "${i#*=}"
+        # TODO Fix to allow different noises for different frameworks.
+        python3 "$CURPATH/noise_json_file_graphs.py" "${i#*=}" "$logfolderpath/"
         shift # past argument=value
         ;;
     -b=*)
@@ -125,7 +125,7 @@ for bench in ${benches[@]}; do
         echo "Log path: $logpath"
         echo "Start: $curbench"
 
-        for ((i=1; i<=$ITER; i++)) do
+        for ((i=1; i<=$ITER; i++)) do                
             TRACECOUNT=$i
             touch "$logpath/$curbench-$TRACECOUNT-$SYSTEM.benchout"
 

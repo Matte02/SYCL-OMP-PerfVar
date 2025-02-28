@@ -104,11 +104,12 @@ def plot_noise_distribution_over_time(noise_data, output_dir):
 def main():
     parser = argparse.ArgumentParser(description="Analyze noise data from a JSON file.")
     parser.add_argument("file_path", type=str, help="Path to the JSON file containing noise data.")
+    parser.add_argument("output_directory", type=str, help="Path to benchmark directory.")
     args = parser.parse_args()
 
-    base_output_dir = os.path.dirname(args.file_path)
+    base_output_dir = os.path.dirname(args.output_directory)
     output_dir = os.path.join(base_output_dir, "graphs/injected_noise")
-    
+    print(f"Saving graphs to {output_dir}")
     noise_data = load_noise_data(args.file_path)
     core_durations = {core: [event[1] for event in events] for core, events in noise_data.items()}
     all_durations = [duration for durations in core_durations.values() for duration in durations]
