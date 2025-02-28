@@ -6,7 +6,7 @@ import sys
 
 def parse_data(file_path):
     # Regular expressions to extract data
-    delay_pattern = re.compile(r'Core (\d+) \(Number of Noises: (\d+)\) \(Total Delay: ([\d.-]+)\) \(Average Delay: ([\d.-]+)\) \(Max Delay: ([\d.-]+)\)')
+    delay_pattern = re.compile(r'Core (\d+) \(Number of Noises: ([\d.-]+)\) \(Total Delay: ([\d.-]+)\) \(Average Delay: ([\d.-]+)\) \(Max Delay: ([\d.-]+)\)')
     oversleep_pattern = re.compile(r'Core (\d+) \(Total Oversleep: ([\d.-]+)\) \(Average Oversleep: ([\d.-]+)\) \(Max Oversleep: ([\d.-]+)\)')
 
     # Lists to store data
