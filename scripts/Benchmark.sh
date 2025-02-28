@@ -54,7 +54,7 @@ for i in "$@"; do
         #This should ensure that we are able to reach 100% utilization for the realtime processes
         echo 1000000 > /proc/sys/kernel/sched_rt_runtime_us
         # TODO Fix to allow different noises for different frameworks.
-        python3 "$CURPATH/noise_json_file_graphs.py" "${i#*=}" "$logfolderpath/"
+        python3 "$CURPATH/noise_config_graphs.py" "${i#*=}" "$logfolderpath/"
         shift # past argument=value
         ;;
     -b=*)
@@ -184,6 +184,8 @@ for bench in ${benches[@]}; do
         echo "End: $curbench"
     done
 done
+echo "Running: $CURPATH/bench_graphs.py" "$logfolderpath" 
+python3 "$CURPATH/bench_graphs.py" "$logfolderpath" 
 
 echo "Benchmarking done"
 
