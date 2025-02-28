@@ -4,9 +4,10 @@
 SYSTEM="Chris"  # System name
 OSNOISEPATH="/sys/kernel/tracing"  # Path to osnoise tracer
 CURPATH="$PWD"  # Current working directory
-ITER=1  # Number of iterations per benchmark
+ITER=1000  # Number of iterations per benchmark
 TRACE=1  # Enable/disable tracing (1 = enabled, 0 = disabled)
-INJECT_NOISE_VALUE="yes"  # Enable/disable noise injection (yes/no)
+INJECT_NOISE_VALUE="no"  # Enable/disable noise injection (yes/no)
+key_count=$(jq 'length' ../noiseinjector/noise_config.json)
 
 
 # Benchmark parameters (default values)
@@ -23,30 +24,60 @@ benchtime=$(date '+%d-%m-%Y-%H:%M:%S')
 logfolderpath="$benchpath/logs/benchrun-$benchtime"
 mkdir -p "$logfolderpath"
 
-# Noise injection configuration
-if [ "$INJECT_NOISE_VALUE" = "yes" ]; then
-    echo "Noise injection is enabled. Using noise injection parameters."
-    key_count=$(jq 'length' ../noiseinjector/noise_config.json)
-    benches=("nbody")
-    benchparameters=("$NBODY_PARAMS $key_count")
-    binname=("main")
-    frameworks=("omp" "sycl")
-    #This should ensure that we are able to reach 100% utilization for the realtime processes
-    echo 1000000 > /proc/sys/kernel/sched_rt_runtime_us
+#Default parameters
+benches=("nbody" "babelstream" "miniFE")
+benchparameters=("$NBODY_PARAMS" "$BABELSTREAM_PARAMS" "$MINIFE_PARAMS")
+makefilepath=("." "." "src")  # Path extensions for Makefiles
+binname=("main" "main" "miniFE.x")  # Binary names
+frameworks=("omp" "sycl")
 
-    noise_config_file="$CURPATH/../noiseinjector/noise_config.json"
-    echo "Copy Noise config file at: $noise_config_file to $logfolderpath"
-    cp  "$noise_config_file" "$logfolderpath/"
+#Handle arguments
+for i in "$@"; do
+  case $i in
+    -i=*)
+        ITER="${i#*=}"
+        shift # past argument=value
+        ;;
+    -t=*)
+        TRACE="${i#*=}"
+        shift # past argument=value
+        ;;
+    -n=*)
+        INJECT_NOISE_VALUE="yes"
+        noise_config_file="${i#*=}"
+        echo "Copy Noise config file at: $noise_config_file to $logfolderpath"
+        cp  "$noise_config_file" "$logfolderpath/"
+        key_count=$(jq 'length' $logfolderpath/noise_config.json)
+        for k in "${!benchparameters[@]}"; do
+            echo ${benchparameters[*]}
+            benchparameters[$k]="${benchparameters[$k]} $key_count"
+            echo ${benchparameters[*]}
+        done
+        #This should ensure that we are able to reach 100% utilization for the realtime processes
+        echo 1000000 > /proc/sys/kernel/sched_rt_runtime_us
 
-    python3 "$CURPATH/noise_json_file_graphs.py" "$logfolderpath/noise_config.json"
-else
-    echo "Noise injection is disabled. Using default parameters."
-    benches=("nbody" "babelstream" "miniFE")
-    benchparameters=("$NBODY_PARAMS" "$BABELSTREAM_PARAMS" "$MINIFE_PARAMS")
-    makefilepath=("." "." "src")  # Path extensions for Makefiles
-    binname=("main" "main" "miniFE.x")  # Binary names
-    frameworks=("omp" "sycl")
-fi
+        python3 "$CURPATH/noise_json_file_graphs.py" "${i#*=}"
+        shift # past argument=value
+        ;;
+    -b=*)
+        benches=( ${benches["${i#*=}"]} )
+        benchparameters=( "${benchparameters["${i#*=}"]}" )
+        makefilepath=( "${makefilepath["${i#*=}"]}" )  # Path extensions for Makefiles
+        binname=( "${binname["${i#*=}"]}" )  # Binary names
+        shift # past argument=value
+        ;;
+    -f=*)
+        frameworks=( "${frameworks["${i#*=}"]}" )
+        shift # past argument=value
+        ;;
+    -*|--*)
+        echo "Unknown option $i"
+        exit 1
+        ;;
+    *)
+        ;;
+  esac
+done
 
 # Source Intel OneAPI environment
 source /opt/intel/oneapi/setvars.sh
@@ -120,7 +151,7 @@ for bench in ${benches[@]}; do
                 # Run noise injection script in the background
                 cd "$CURPATH" || exit 1
                 output_file="$logpath/$curbench-$SYSTEM.noiseout" 2>&1
-                python3 "$CURPATH/run_noise.py" --verbose --rebuild --debug >> $output_file&
+                python3 "$CURPATH/run_noise.py" --verbose --rebuild --debug --json-file "$logfolderpath/noise_config.json" >> $output_file&
                 noise_pid=$!
                 cd "$benchpath/$curbench/${makefilepath[$benchidx]}" || exit 1
             fi
@@ -142,8 +173,15 @@ for bench in ${benches[@]}; do
             echo "Input params: $params" >> "$logpath/$curbench-$TRACECOUNT-$SYSTEM.benchout"
             echo "Noise injector was enabled? A: $INJECT_NOISE_VALUE" >> "$logpath/$curbench-$TRACECOUNT-$SYSTEM.benchout"
         done
+        #Create noise graphs
         if [ "$INJECT_NOISE_VALUE" = "yes" ]; then
             python3 "$CURPATH/noise_graphs.py" "$logpath"
+        #Generate noise injection configuration
+        elif [ $TRACE -eq 1 ]; then
+            cd "$CURPATH" || exit 1
+            python3 "$CURPATH/traces_to_noise_config.py" "$logpath"
+            mv "$CURPATH/noise_config.json" "$logpath" 
+            cd "$benchpath/$curbench/${makefilepath[$benchidx]}" || exit 1
         fi
         echo "End: $curbench"
     done
