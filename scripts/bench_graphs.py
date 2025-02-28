@@ -17,15 +17,14 @@ def main():
     print(benches)
 
     for bench in benches:
-        print(bench)
+        if not "sycl" in str(bench) and not "omp" in str(bench):
+            continue
+
         if not os.path.isdir(os.path.normpath(sys.argv[1])+'/'+os.path.normpath(bench)):
-            print("cont")
             continue
         
-        print(bench)
         benchpath=os.path.normpath(sys.argv[1])+'/'+os.path.normpath(bench)
         files = []
-        print(benchpath)
 
         for (dirpath, dirnames, filenames) in walk(benchpath):
             for file in filenames:
@@ -33,9 +32,8 @@ def main():
                     files.append(file)
             break 
         
-        print(files)
         if len(files)==0:
-            print("break")
+            print("No files")
             break
 
         exectimes = []
@@ -49,14 +47,11 @@ def main():
                     if dur_match:
                         total_duration = dur_match.group(1)
                         total_duration = float(total_duration)  # Convert to nanoseconds
-                        print(total_duration)
                         exectimes.append(total_duration)
                     
             
         exectimes.sort()
-        print(len(exectimes))
         avgexectime = sum(exectimes)/len(exectimes)
-        print(avgexectime)
         normexectimes = list(map(lambda x: x/avgexectime, exectimes))
 
 
