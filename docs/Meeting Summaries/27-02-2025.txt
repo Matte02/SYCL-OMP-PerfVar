@@ -1,0 +1,7 @@
+* We've implmented a noise injector and measured the delay in noises from when they should start and the accuracy of the sleeps used between noises to allow for the workload to execute.
+
+* We'll continue with gaining a broader view of the noise injector by continuing to measure and investigate it. More graphs etc
+
+* This and next week we'll also begin testing mitigation strategies with and without the noise injector to gain an idea of actual practicality while trying to emulate results seen in previous studies regarding performance variability.
+
+* Next weeks meeting is preliminary cancelled due to unavailability
