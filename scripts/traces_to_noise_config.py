@@ -130,7 +130,7 @@ def combine_consecutive_noises(noise_dict, sync_start_diff, merge_threshold=0):
             else:
                 # If the current noise is close to the previous one, combine them
                 if next_start + next_duration + merge_threshold >= adjusted_start:
-                    next_duration += duration + max(adjusted_start - next_start + next_duration, 0)
+                    next_duration += duration + max(adjusted_start - (next_start + next_duration), 0)
                 else:
                     # No overlap, add the previous noise event and reset
                     combined_noises.append((next_start, next_duration))
