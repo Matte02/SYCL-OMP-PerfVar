@@ -108,7 +108,7 @@ def main():
     args = parser.parse_args()
 
     base_output_dir = os.path.dirname(args.output_directory)
-    output_dir = os.path.join(base_output_dir, "graphs/injected_noise")
+    output_dir = os.path.join(base_output_dir, "")
     print(f"Saving graphs to {output_dir}")
     noise_data = load_noise_data(args.file_path)
     core_durations = {core: [event[1] for event in events] for core, events in noise_data.items()}
