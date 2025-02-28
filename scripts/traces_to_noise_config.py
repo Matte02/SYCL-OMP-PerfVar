@@ -130,7 +130,7 @@ def combine_consecutive_noises(noise_dict, sync_start_diff, merge_threshold=0):
             else:
                 # If the current noise is close to the previous one, combine them
                 if next_start + next_duration + merge_threshold >= adjusted_start:
-                    next_duration += duration
+                    next_duration += duration + max(adjusted_start - next_start + next_duration, 0)
                 else:
                     # No overlap, add the previous noise event and reset
                     combined_noises.append((next_start, next_duration))
@@ -273,7 +273,6 @@ def get_cpu_dict(file, trace_path):
 
     # Initialize variables to store the extracted values from benchout
     total_duration = -1
-    second_start_time = -1
 
     if file.endswith(".trace"):
         # Read total duration from .benchout file
@@ -303,9 +302,6 @@ def get_cpu_dict(file, trace_path):
                 tasks[task] = sorted(timings, key=lambda x: x[0])
 
         return (cpu_dict, total_duration)
-
-
-
 
 if __name__ == "__main__":
     main()
