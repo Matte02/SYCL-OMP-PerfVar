@@ -24,6 +24,9 @@ benchtime=$(date '+%d-%m-%Y-%H:%M:%S')
 logfolderpath="$benchpath/logs/benchrun-$benchtime"
 mkdir -p "$logfolderpath"
 
+graphfolder="$logfolderpath/graphs"
+mkdir -p "$graphfolder"
+
 #Default parameters
 benches=("nbody" "babelstream" "miniFE")
 benchparameters=("$NBODY_PARAMS" "$BABELSTREAM_PARAMS" "$MINIFE_PARAMS")
@@ -54,7 +57,8 @@ for i in "$@"; do
         #This should ensure that we are able to reach 100% utilization for the realtime processes
         echo 1000000 > /proc/sys/kernel/sched_rt_runtime_us
         # TODO Fix to allow different noises for different frameworks.
-        python3 "$CURPATH/noise_config_graphs.py" "${i#*=}" "$logfolderpath/"
+        python3 "$CURPATH/noise_config_graphs.py" "${i#*=}" "$graphfolder"
+        echo "Running: $CURPATH/noise_config_graphs.py" "${i#*=}" "$graphfolder"
         shift # past argument=value
         ;;
     -b=*)
@@ -149,7 +153,7 @@ for bench in ${benches[@]}; do
                 # Run noise injection script in the background
                 cd "$CURPATH" || exit 1
                 output_file="$logpath/$curbench-$SYSTEM.noiseout" 2>&1
-                python3 "$CURPATH/run_noise.py" --verbose --rebuild --debug --json-file "$logfolderpath/noise_config.json" >> $output_file&
+                python3 "$CURPATH/run_noise.py" --verbose --debug --json-file "$logfolderpath/noise_config.json" >> $output_file&
                 noise_pid=$!
                 cd "$benchpath/$curbench/${makefilepath[$benchidx]}" || exit 1
             fi
@@ -173,7 +177,7 @@ for bench in ${benches[@]}; do
         done
         #Create noise graphs
         if [ "$INJECT_NOISE_VALUE" = "yes" ]; then
-            python3 "$CURPATH/noise_graphs.py" "$logpath"
+            python3 "$CURPATH/noise_graphs.py" "$logpath" "$graphfolder"
         #Generate noise injection configuration
         elif [ $TRACE -eq 1 ]; then
             cd "$CURPATH" || exit 1
@@ -184,8 +188,8 @@ for bench in ${benches[@]}; do
         echo "End: $curbench"
     done
 done
-echo "Running: $CURPATH/bench_graphs.py" "$logfolderpath" 
-python3 "$CURPATH/bench_graphs.py" "$logfolderpath" 
+echo "Running: $CURPATH/bench_graphs.py" "$logfolderpath" "$graphfolder"
+python3 "$CURPATH/bench_graphs.py" "$logfolderpath" "$graphfolder"
 
 echo "Benchmarking done"
 

@@ -107,16 +107,15 @@ def main():
     parser.add_argument("output_directory", type=str, help="Path to benchmark directory.")
     args = parser.parse_args()
 
-    base_output_dir = os.path.dirname(args.output_directory)
-    output_dir = os.path.join(base_output_dir, "")
-    print(f"Saving graphs to {output_dir}")
+    base_output_dir = os.path.normpath(args.output_directory)
+    print(f"Saving graphs to {base_output_dir}")
     noise_data = load_noise_data(args.file_path)
     core_durations = {core: [event[1] for event in events] for core, events in noise_data.items()}
     all_durations = [duration for durations in core_durations.values() for duration in durations]
     
-    plot_histograms(core_durations, all_durations, output_dir)
-    plot_noise_counts(core_durations, output_dir)
-    plot_noise_distribution_over_time(noise_data, output_dir)
+    plot_histograms(core_durations, all_durations, base_output_dir)
+    plot_noise_counts(core_durations, base_output_dir)
+    plot_noise_distribution_over_time(noise_data, base_output_dir)
 
 if __name__ == "__main__":
     main()
