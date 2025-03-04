@@ -65,33 +65,33 @@ def main():
     raw_trace_files = [file for file in os.listdir(trace_path) if file.endswith(".trace")]
     raw_trace_files.sort(key=lambda file: int(file.split("-")[2]))  # Sort by trace number
 
-    # Create a multiprocessing pool to process traces in parallel
-    pool = Pool()
-
-    # Process all trace files into a list of trace data
-    trace_list = pool.starmap(get_cpu_dict, [(file, trace_path) for file in raw_trace_files])
-
-    print(f"Number of traces: {len(trace_list)}")
+    print(f"Number of traces: {len(raw_trace_files)}")
 
     # Find the worst trace (one with the maximum duration)
-    worst_trace = max(trace_list, key=lambda x: x[1])
+    worst_trace = get_worst_case_dict(raw_trace_files, trace_path)
     print(f"Worst trace duration: {worst_trace[1]}")
 
     # Compute average trace to filter out inherent noise
-    average_dict = compute_average_trace(trace_list)
-    
+    average_dict = compute_average_trace(raw_trace_files, trace_path)
+    print(f"Average dict")
+
     # Clean the worst trace by removing average noise
     clean_worst_trace(worst_trace[0], average_dict)
+    print(f"Cleaned worst case")
+
 
     # Separate the workload execution from the noise traces
     noise_dict, workload_exec = seperate_traces(worst_trace[0], args.workload_name)
     workload_exec.sort(key=lambda tup: tup[0])  # Sort by start time
+    print(f"Seperated workload from trace")
+
     
     # Synchronize the start time of the workload with the noise traces
     sync_start_diff = workload_exec[0][0]
 
     # Merge consecutive noise events into one continuous event using the provided merge threshold
     combine_consecutive_noises(noise_dict, sync_start_diff, merge_threshold=args.merge_threshold)
+    print(f"Combined overlapping noise")
 
     # Write the processed noise data to the specified output JSON file
     json_string = json.dumps(noise_dict, indent=4) 
@@ -185,64 +185,83 @@ def clean_worst_trace(worst_trace, average_dict):
     """
     for cpu, tasks in worst_trace.items():
         for task, timing_list in tasks.items():
-            for timing, duration in average_dict[cpu][task]:
+            avg_occurences, avg_duration = average_dict[cpu][task]
+            for x in range(avg_occurences):
                 if len(worst_trace[cpu][task]) <= 0:     # Skip if no data available
                     break
-
                 # Find the closest matching duration in worst-case trace
                 closest_idx = min(
                     range(len(worst_trace[cpu][task])), 
-                    key=lambda i: abs(worst_trace[cpu][task][i][1] - duration)
+                    key=lambda i: abs(worst_trace[cpu][task][i][1] - avg_duration)
                 )
 
                 # Adjust or remove the closest matching entry
                 closest_timing, closest_duration = worst_trace[cpu][task][closest_idx]
-                if closest_duration - duration < 0:
+                if closest_duration - avg_duration < 0:
                     worst_trace[cpu][task] = (
                         worst_trace[cpu][task][:closest_idx] + 
                         worst_trace[cpu][task][closest_idx + 1:]
                     )
                 else:
-                    worst_trace[cpu][task][closest_idx] = (closest_timing, closest_duration - duration)
+                    worst_trace[cpu][task][closest_idx] = (closest_timing, closest_duration - avg_duration)
 
-def compute_average_trace(trace_list):
+#Used for multiprocessed map call
+def get_occurences_duration_dict(file, trace_path):
     """
-    Computes the average trace from a list of traces.
-
+    Produces a dictionary consisting of the amount of occurences of a 
+    task and the total duration on each present CPUs
+        
     Args:
-        trace_list (list): A list of trace data tuples containing CPU task timings.
+        file (str): The trace file name.
+        trace_path (str): The path to the directory containing the trace files.
 
     Returns:
-        dict: A dictionary containing the average timings for each CPU and task.
+        dict: A dictionary containing the total occurences and duration for each CPU and task.
+    """
+    trace  = get_cpu_dict(file, trace_path)
+    o_d_dict: dict[int, dict[str, (int, int)]]
+    o_d_dict = dict()
+    for cpu, tasks in trace[0].items():
+        for task, timings in tasks.items():
+            for timing in timings:
+                duration = timing[1]
+                old_val = o_d_dict.setdefault(cpu, {}).setdefault(task, (0, 0))
+                #Increment occurence amount and add to total duration of this task
+                o_d_dict[cpu][task] = (old_val[0]+1, old_val[1]+duration)
+    return o_d_dict
+
+def compute_average_trace(raw_trace_files, trace_path):
+    """
+    Produces a dictionary consisting of the average amount of occurences of a 
+    task and the average duration on each present CPUs
+        
+    Args:
+        raw_trace_files [str]: List of trace files to be evaluated.
+        trace_path (str): The path to the directory containing the trace files.
+
+    Returns:
+        dict: A dictionary containing the average occurences and durations for each CPU and task.
     """
 
-    # Create average trace
-    average_dict: dict[int, dict[str, list[(int, int)]]]
+    #Get occurences and duration of tasks on all cpus on all traces
+    pool = Pool()
+    o_d_list = pool.starmap(get_occurences_duration_dict, [(file, trace_path) for file in raw_trace_files])
+    
+    average_dict: dict[int, dict[str, (int, int)]]
     average_dict = dict()
-    # Gather all tasks
-    for trace in trace_list:
-        for cpu, tasks in trace[0].items():
-            for task, timings in tasks.items():
-                average_dict.setdefault(cpu, {}).setdefault(task, []).extend(timings)
 
-    # Calculate the average duration for each task and CPU
+    # Accumulate occurence and duration of all tasks in traces
+    for o_d_dict in o_d_list:
+        for cpu, tasks in o_d_dict.items():
+            for task, (occurences, duration) in tasks.items():
+                old_val = average_dict.setdefault(cpu, {}).setdefault(task, (0, 0))
+                average_dict[cpu][task] = (old_val[0]+occurences, old_val[1]+duration)
+
+    # Calculate the average duration and occurences for each task on each CPU
     for cpu, tasks in average_dict.items():
-        for task, timing_list in tasks.items():
-            total_duration = 0  # Sum of all durations for averaging
-            sampled_occurrences = []  # List to store sampled occurrences
-            
-            # Iterate over task timings and durations
-            for i, (timing, duration) in enumerate(timing_list):
-                total_duration += duration
-                # Sample occurrences at intervals based on trace_list length
-                if i % len(trace_list) == 0:
-                    sampled_occurrences.append((timing, duration))
-            
-            # Compute average duration for the task
-            average_duration = int(total_duration / len(timing_list))
-            
-            # Replace original task data with sampled occurrences and average duration
-            average_dict[cpu][task] = [(timing, average_duration) for timing, _ in sampled_occurrences]
+        for task, avg_tup in tasks.items():
+            average_dict[cpu][task] = (int(average_dict[cpu][task][0]//len(raw_trace_files)), int(average_dict[cpu][task][1]//len(raw_trace_files)))
+    
     return average_dict
 
 def get_cpu_dict(file, trace_path):
@@ -256,7 +275,6 @@ def get_cpu_dict(file, trace_path):
     Returns:
         tuple: A tuple containing a dictionary of CPU traces and the total duration.
     """
-    
     # Define regular expressions for matching the total duration and the second start time
     duration_re = re.compile(r"Total Duration: (\d+\.\d+) seconds")
 
@@ -281,7 +299,6 @@ def get_cpu_dict(file, trace_path):
                 if (match := duration_re.match(line)):
                     total_duration = int(match.group(1).replace(".", ""))
     
-    
         #Dict(CPU,Dict(task,[(start,duration)]))
         cpu_dict: dict[int, dict[str, list[(int, int)]]]#= dict({'NULL': dict({'NULL': []})})
         cpu_dict = dict()
@@ -291,7 +308,7 @@ def get_cpu_dict(file, trace_path):
                 if (match := trace_regex.search(line)):
                     cpu_id = int(match[1])                      # CPU ID
                     task = match[2].rsplit(":",1)[0] or "nmi"   # Task name
-                    start = int(float(match[3]) * 1e9)          # Start Time (ns)
+                    start = int(match[3].replace(".", ""))          # Start Time (ns)
                     duration = int(match[4])                    # Duration (ns)
 
                     cpu_dict.setdefault(cpu_id, {}).setdefault(task, []).append((start, duration))
@@ -302,6 +319,47 @@ def get_cpu_dict(file, trace_path):
                 tasks[task] = sorted(timings, key=lambda x: x[0])
 
         return (cpu_dict, total_duration)
+
+#Used for multiprocessed map call
+def get_file_duration_tuple(file, trace_path):
+    """
+    Fetches the durations of a workload execution for the provided trace
+
+    Args:
+        file (str): The trace file name.
+        trace_path (str): The path to the directory containing the trace files.
+
+    Returns:
+        tuple: A tuple containing the trace file name and the associated workload duration.
+    """
+    # Define regular expressions for matching the total duration and the second start time
+    duration_re = re.compile(r"Total Duration: (\d+\.\d+) seconds")
+    with open(os.path.join(trace_path, file.replace(".trace", ".benchout")), "r") as lines:
+                    for line in lines:
+                        if (match := duration_re.match(line)):
+                            total_duration = int(match.group(1).replace(".", ""))
+                    return (file, total_duration)
+    
+def get_worst_case_dict(raw_trace_files, trace_path):
+    """
+    Finds and fetches the dictionary of the trace with worst-case duration
+    
+    Args:
+        raw_trace_files [str]: List of trace files to be evaluated.
+        trace_path (str): The path to the directory containing the trace files.
+
+    Returns:
+        tuple: A tuple containing a dictionary of CPU traces and the total duration.
+    """
+
+    pool = Pool()
+    duration_list = pool.starmap(get_file_duration_tuple, [(file, trace_path) for file in raw_trace_files])
+        
+    worst_case_file, _ = max(duration_list, key=lambda x: x[1])
+    return (get_cpu_dict(worst_case_file, trace_path))
+
+
+                
 
 if __name__ == "__main__":
     main()
