@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configuration
-SYSTEM="matte"  # System name
+SYSTEM="chris"  # System name
 OSNOISEPATH="/sys/kernel/tracing"  # Path to osnoise tracer
 CURPATH="$PWD"  # Current working directory
 ITER=5  # Number of iterations per benchmark
@@ -148,7 +148,7 @@ for bench in ${benches[@]}; do
             benchmark_pid=$!  # Save the PID of the benchmark process
 
             if [ "$INJECT_NOISE_VALUE" = "yes" ]; then
-                #Allow the workload to reach barrier 
+                # Allow the workload to reach barrier 
                 sleep 1
                 # Run noise injection script in the background
                 cd "$CURPATH" || exit 1
@@ -161,13 +161,20 @@ for bench in ${benches[@]}; do
             wait  $benchmark_pid
 
             if [ "$INJECT_NOISE_VALUE" = "yes" ]; then
+                # End noise injection
                 kill -SIGTERM $noise_pid
                 wait $noise_pid
             fi
+
             # Disable tracing if specified
             if [ $TRACE -eq 1 ]; then
-                echo 0 > "$OSNOISEPATH/tracing_on"
+                # Sleep to allow for cooldown period where noises stretching past workload end are captured
                 sleep 1
+                # Turn off tracing
+                echo 0 > "$OSNOISEPATH/tracing_on"
+                # Sleep to guarante tracing being turned of before starting next benchmark iteration
+                sleep 1
+                # Save trace
                 cat "$OSNOISEPATH/trace" > "$logpath/$curbench-$TRACECOUNT-$SYSTEM.trace"
             fi
             
