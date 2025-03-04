@@ -57,8 +57,8 @@ for i in "$@"; do
         #This should ensure that we are able to reach 100% utilization for the realtime processes
         echo 1000000 > /proc/sys/kernel/sched_rt_runtime_us
         # TODO Fix to allow different noises for different frameworks.
-        python3 "$CURPATH/noise_config_graphs.py" "${i#*=}" "$graphfolder"
-        echo "Running: $CURPATH/noise_config_graphs.py" "${i#*=}" "$graphfolder"
+        python3 "$CURPATH/noise_config_graphs.py" "${i#*=}" "$graphfolder/injected_noise"
+        echo "Running: $CURPATH/noise_config_graphs.py" "${i#*=}" "$graphfolder/injected_noise"
         shift # past argument=value
         ;;
     -b=*)
@@ -107,7 +107,6 @@ cleanup() {
 
 # Trap SIGINT (Ctrl + C) signal
 trap cleanup SIGINT
-
 #Loop thorugh all benches, versions, and iterations
 benchidx=-1
 for bench in ${benches[@]}; do
@@ -184,7 +183,7 @@ for bench in ${benches[@]}; do
         done
         #Create noise graphs
         if [ "$INJECT_NOISE_VALUE" = "yes" ]; then
-            python3 "$CURPATH/noise_graphs.py" "$logpath" "$graphfolder"
+            python3 "$CURPATH/noise_graphs.py" "$logpath" "$graphfolder/observed_noise"
         #Generate noise injection configuration
         elif [ $TRACE -eq 1 ]; then
             cd "$CURPATH" || exit 1
@@ -195,8 +194,9 @@ for bench in ${benches[@]}; do
         echo "End: $curbench"
     done
 done
-echo "Running: $CURPATH/bench_graphs.py" "$logfolderpath" "$graphfolder"
-python3 "$CURPATH/bench_graphs.py" "$logfolderpath" "$graphfolder"
+mkdir -p "$graphfolder/performance"
+echo "Running: $CURPATH/bench_graphs.py" "$logfolderpath" "$graphfolder/performance"
+python3 "$CURPATH/bench_graphs.py" "$logfolderpath" "$graphfolder/performance"
 
 echo "Benchmarking done"
 
