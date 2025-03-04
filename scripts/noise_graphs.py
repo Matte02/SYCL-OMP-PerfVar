@@ -29,15 +29,15 @@ def parse_data(file_path):
                 core, noises, total_delay, avg_delay, max_delay = delay_match.groups()
                 cores.append(int(core))
                 num_noises.append(int(noises))
-                total_delays.append(int(total_delay))
-                avg_delays.append(float(avg_delay))
-                max_delays.append(float(max_delay))
+                total_delays.append(-int(total_delay))
+                avg_delays.append(-float(avg_delay))
+                max_delays.append(-float(max_delay))
             
             if oversleep_match:
                 core, total_oversleep, avg_oversleep, max_oversleep = oversleep_match.groups()
-                total_oversleeps.append(int(total_oversleep))
-                avg_oversleeps.append(float(avg_oversleep))
-                max_oversleeps.append(float(max_oversleep))
+                total_oversleeps.append(-int(total_oversleep))
+                avg_oversleeps.append(-float(avg_oversleep))
+                max_oversleeps.append(-float(max_oversleep))
 
     # Create a DataFrame
     data = {
