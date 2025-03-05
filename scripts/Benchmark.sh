@@ -7,6 +7,7 @@ CURPATH="$PWD"  # Current working directory
 ITER=5  # Number of iterations per benchmark
 TRACE=1  # Enable/disable tracing (1 = enabled, 0 = disabled)
 INJECT_NOISE_VALUE="no"  # Enable/disable noise injection (yes/no)
+THREAD_PINNING="no" # Enable/disable thread pinning (yes/no), warning: miniFE sycl does not perform with both OMP and DPCPP envars
 key_count=$(jq 'length' ../noiseinjector/noise_config.json)
 
 
@@ -91,6 +92,17 @@ echo > "$OSNOISEPATH/set_event"
 echo "osnoise" > "$OSNOISEPATH/set_event"
 echo "mono_raw" > "$OSNOISEPATH/trace_clock"
 
+# Setup environment variables
+if [ "$THREAD_PINNING" = "yes" ]; then
+    #export OMP_NUM_THREADS=8
+    export OMP_PLACES=threads
+    export OMP_PROC_BIND=spread
+
+    #export DPCPP_CPU_NUM_CUS=8
+    export DPCPP_CPU_PLACES=threads
+    export DPCPP_CPU_CU_AFFINITY=spread
+fi
+
 # TODO: Make the common makefile here
 
 
@@ -126,6 +138,11 @@ for bench in ${benches[@]}; do
         logpath="$logfolderpath/$curbench"
         mkdir -p "$logpath"
         echo "Log path: $logpath"
+        echo "Warmup: $curbench"
+        binary="${binname[$benchidx]}"
+        ./"$binary" $params >/dev/null 2>&1
+        ./"$binary" $params >/dev/null 2>&1
+        ./"$binary" $params >/dev/null 2>&1
         echo "Start: $curbench"
 
         for ((i=1; i<=$ITER; i++)) do                
@@ -142,7 +159,6 @@ for bench in ${benches[@]}; do
 
             echo $i
             # Run the benchmark
-            binary="${binname[$benchidx]}"
             time ./"$binary" $params > "$logpath/$curbench-$TRACECOUNT-$SYSTEM.benchout" 2>&1 &
             benchmark_pid=$!  # Save the PID of the benchmark process
 

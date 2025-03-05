@@ -174,6 +174,7 @@ def clean_worst_trace(worst_trace, average_dict):
         worst_trace (dict): The trace data for the worst trace (with CPU task timings).
         average_dict (dict): The average trace data to filter out from the worst trace.
     """
+    # TODO: Parallelize loop
     for cpu, tasks in worst_trace.items():
         for task, _ in tasks.items():
             try:
