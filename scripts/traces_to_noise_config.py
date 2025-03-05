@@ -73,22 +73,18 @@ def main():
 
     # Compute average trace to filter out inherent noise
     average_dict = compute_average_trace(raw_trace_files, trace_path, args.workload_name)
-    print(f"Average dict")
+    print(f"Average dict created")
 
     # Clean the worst trace by removing average noise
     clean_worst_trace(worst_trace[0], average_dict)
     print(f"Cleaned worst case")
 
     # Separate the workload execution from the noise traces
-    noise_dict, workload_exec = seperate_traces(worst_trace[0], args.workload_name)
+    noise_dict, _ = seperate_traces(worst_trace[0], args.workload_name)
     print(f"Seperated workload from trace")
 
-    # Synchronize the start time of the workload with the noise traces
-    sync_start_diff = workload_exec[0][0]
-    print(sync_start_diff)
-
     # Merge consecutive noise events into one continuous event using the provided merge threshold
-    combine_consecutive_noises(noise_dict, sync_start_diff, merge_threshold=args.merge_threshold)
+    combine_consecutive_noises(noise_dict, merge_threshold=args.merge_threshold)
     print(f"Combined overlapping noise")
 
     # Write the processed noise data to the specified output JSON file
@@ -96,7 +92,7 @@ def main():
     with open(args.output_filename, "w") as f:
         f.write(json_string)
 
-def combine_consecutive_noises(noise_dict, sync_start_diff, merge_threshold=0):
+def combine_consecutive_noises(noise_dict, merge_threshold=0):
     """
     Merges consecutive or closely spaced noise occurrences into single continuous events.
 
