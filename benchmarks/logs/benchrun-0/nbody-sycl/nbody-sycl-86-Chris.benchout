@@ -1,9 +1,0 @@
-Input params: 10000 12000
-===============================
- Initialize Gravity Simulation
-
-# Total Energy        : 165641
-# Total Time (s)      : 56.5161
-# Average Performance : 618.819 +- 24.7471
-===============================
-56.576
