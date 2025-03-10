@@ -2,9 +2,53 @@ import os
 import re
 import sys
 import matplotlib.pyplot as plt
+import numpy as np
 
-# Usage: Arg 1 contains the path to the folder where benchmark output folders are stored
-# Arg 2 (optional) contains the path to the folder where graphs will be saved
+def calculate_percentiles(data):
+    return {
+        'min': np.min(data),
+        'max': np.max(data),
+        '1th': np.percentile(data, 1),
+        '10th': np.percentile(data, 10),
+        '25th': np.percentile(data, 25),
+        '50th': np.percentile(data, 50),
+        '75th': np.percentile(data, 75),
+        '90th': np.percentile(data, 90),
+        '99th': np.percentile(data, 99),
+    }
+
+def write_statistics_to_file(output_folder, bench, exectimes, normexectimes):
+    stats_file_path = os.path.join(output_folder, f"{bench}_stats.txt")
+    percentiles = calculate_percentiles(exectimes)
+    norm_percentiles = calculate_percentiles(normexectimes)
+    
+    with open(stats_file_path, "w") as stats_file:
+        stats_file.write(f"Statistics for {bench}:\n")
+        stats_file.write("\n--- Execution Times (seconds) ---\n")
+        stats_file.write(f"Min: {percentiles['min']:.9f}\n")
+        stats_file.write(f"1th percentile: {percentiles['1th']:.9f}\n")
+        stats_file.write(f"10th percentile: {percentiles['10th']:.9f}\n")
+        stats_file.write(f"25th percentile: {percentiles['25th']:.9f}\n")
+        stats_file.write(f"50th percentile: {percentiles['50th']:.9f}\n")
+        stats_file.write(f"75th percentile: {percentiles['75th']:.9f}\n")
+        stats_file.write(f"90th percentile: {percentiles['90th']:.9f}\n")
+        stats_file.write(f"99th percentile: {percentiles['99th']:.9f}\n")
+        stats_file.write(f"Max: {percentiles['max']:.9f}\n")
+        stats_file.write(f"Average: {np.mean(exectimes):.9f}\n")
+        stats_file.write(f"Standard Deviation: {np.std(exectimes):.9f}\n")
+
+        stats_file.write("\n--- Normalized Execution Times ---\n")
+        stats_file.write(f"Min: {norm_percentiles['min']:.9f}\n")
+        stats_file.write(f"1th percentile: {norm_percentiles['1th']:.9f}\n")
+        stats_file.write(f"10th percentile: {norm_percentiles['10th']:.9f}\n")
+        stats_file.write(f"25th percentile: {norm_percentiles['25th']:.9f}\n")
+        stats_file.write(f"50th percentile: {norm_percentiles['50th']:.9f}\n")
+        stats_file.write(f"75th percentile: {norm_percentiles['75th']:.9f}\n")
+        stats_file.write(f"90th percentile: {norm_percentiles['90th']:.9f}\n")
+        stats_file.write(f"99th percentile: {norm_percentiles['99th']:.9f}\n")
+        stats_file.write(f"Max: {norm_percentiles['max']:.9f}\n")
+        stats_file.write(f"Standard Deviation: {np.std(normexectimes):.9f}\n")
+
 def main():
     if len(sys.argv) < 2 or not os.path.exists(sys.argv[1]):
         print('First argument must be a valid path to the folder containing benchmark outputs.')
@@ -14,8 +58,7 @@ def main():
     output_folder = sys.argv[2] if len(sys.argv) > 2 else input_folder  # Use input folder as default for output
 
     if not os.path.exists(output_folder):
-        print(f'Output folder does not exist: {output_folder}')
-        return
+        os.makedirs(output_folder)
     
     benches = os.listdir(input_folder)
     print(benches)
@@ -60,12 +103,14 @@ def main():
 
         # Plot execution times in seconds
         fig, axs = plt.subplots()
-
         axs.set_ylabel('Execution time (s)')
         axs.set_xlabel(bench)
         axs.boxplot([exectimes])
         plt.xticks([])
         plt.savefig(os.path.join(output_folder, f"{bench}-sec.png"))
+
+        # Write statistics to file
+        write_statistics_to_file(output_folder, bench, exectimes, normexectimes)
 
 if __name__ == "__main__":
     main()
