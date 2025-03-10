@@ -8,6 +8,7 @@ ITER=5  # Number of iterations per benchmark
 TRACE=1  # Enable/disable tracing (1 = enabled, 0 = disabled)
 INJECT_NOISE_VALUE="no"  # Enable/disable noise injection (yes/no)
 THREAD_PINNING="no" # Enable/disable thread pinning (yes/no), warning: miniFE sycl does not perform with both OMP and DPCPP envars
+HOUSEHOLDING="no" # Enable/disable thread pinning (yes/no)
 key_count=$(jq 'length' ../noiseinjector/noise_config.json)
 
 
@@ -33,6 +34,10 @@ benches=("nbody" "babelstream" "miniFE")
 benchparameters=("$NBODY_PARAMS" "$BABELSTREAM_PARAMS" "$MINIFE_PARAMS")
 makefilepath=("." "." "src")  # Path extensions for Makefiles
 binname=("main" "main" "miniFE.x")  # Binary names
+#benches=("nbody" "babelstream")
+#benchparameters=("$NBODY_PARAMS" "$BABELSTREAM_PARAMS")
+#makefilepath=("." ".")  # Path extensions for Makefiles
+#binname=("main" "main")  # Binary names
 frameworks=("omp" "sycl")
 
 #Handle arguments
@@ -93,15 +98,27 @@ echo "osnoise" > "$OSNOISEPATH/set_event"
 echo "mono_raw" > "$OSNOISEPATH/trace_clock"
 
 # Setup environment variables
-if [ "$THREAD_PINNING" = "yes" ]; then
-    #export OMP_NUM_THREADS=8
-    export OMP_PLACES=threads
-    export OMP_PROC_BIND=spread
+threads="$(nproc)"
+places="threads"
+proc_bind="false" # If proc_bind is set to false then threads are distributed randomly even though places is explicitly set
 
-    #export DPCPP_CPU_NUM_CUS=8
-    export DPCPP_CPU_PLACES=threads
-    export DPCPP_CPU_CU_AFFINITY=spread
+if [ "$THREAD_PINNING" = "yes" ]; then
+    proc_bind="spread"
+    if [ "$HOUSEHOLDING" = "yes" ]; then
+        housholding_cpus=$((threads / 8)) #12.5% of available cpus
+        places="{0}:$(($threads - $housholding_cpus)):1"
+        threads=$(($threads - $housholding_cpus))
+    fi
 fi
+
+export OMP_NUM_THREADS=$threads
+export OMP_PLACES=$places
+export OMP_PROC_BIND=$proc_bind
+
+export DPCPP_CPU_NUM_CUS=$threads
+export DPCPP_CPU_PLACES=$places
+# TODO: False is most likely not supported. Should find another solution allowing for tasks to migrate between cores if possible. 
+export DPCPP_CPU_CU_AFFINITY=$proc_bind
 
 # TODO: Make the common makefile here
 
