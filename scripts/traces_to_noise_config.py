@@ -151,17 +151,46 @@ def seperate_traces(cpu_dict, workload_task_name):
     noise_dict = dict()
     workload_exec = []
 
+    swapper_re = re.compile(r"swapper")
+
     for cpu, tasks in cpu_dict.items():
         noise = []
-
+        workload_cpu = []
+        swapper_cpu = []
         for task, timing_list in tasks.items():
+            match = swapper_re.search(task)
+            if match != None: # Collect instances of the swapper task
+                swapper_cpu.extend(timing_list)
+                continue
             if task == workload_task_name:
                 workload_exec.extend(timing_list) # Collect workload execution timings
             else:
                 noise.extend(timing_list) # Collect noise timings
 
+        # Filter swapper tasks related to the execution of the workload
+        # This removes the context switch overhead stemming from workload
+        assert len(swapper_cpu) >= len(workload_cpu)
+        swapper_cpu = sorted(swapper_cpu, key=lambda tup: tup[0])
+        # For each work instance remove the previous occurence of the swapper task 
+        # as it should have been caused by the workload context swich
+        for work_timing in workload_cpu: 
+            prev_swap = 0
+            for swap_timing in swapper_cpu:
+                # Check if the next instance of swapper happened later than the
+                # start of the workload instance
+                if work_timing[0] - swap_timing[0] < 0:
+                    # Swapper instance related to the workload instance has been found
+                    break
+                prev_swap = swap_timing
+            swapper_cpu.remove(prev_swap)
+        
+        # Add unrelated swapper task instances to inherent noise list
+        noise.extend(swapper_cpu)
+
+
         # Sort noise timings for this CPU
         noise_dict[cpu] = sorted(noise, key=lambda tup: tup[0])
+        workload_exec.extend(workload_cpu)
 
     workload_exec.sort(key=lambda tup: tup[0])
     return noise_dict, workload_exec
