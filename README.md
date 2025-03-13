@@ -18,6 +18,12 @@ Several arguments can be passed to the scipt in order to configure its behaviour
 
 -n=PATH_TO_NOISE_CONFIG This enables noise injection. PATH_TO_NOISE_CONFIG is the path to the noise_config.json file to utilize for noise injection. 
 
+-na=PATH_TO_NOISE_CONFIG Same as "-n" however disables thread pinning of the noise injecting processes. This allows for testing of mitigation strategies which might affect the CPU distribution of noise when executeing the workload.
+
+-mt=X Sets the number of threads usable by the workload to this number by way of an environment variable.
+
+-m=X This sets which type of mitigation strategy should be used. Available mitigation options are: No threadpinning (0), Threadpinning (1), Threadpinning + Housekeeping (2).
+
 -t=X This disables and enables tracing by setting X to 0 respectively 1. By enabling tracing, the noise_config.json file is generated after the benchmark has executed all of its iterations and placed in benchmarks/logs/THIS_RUN/CURRENT_BENCHMARK/CURRENT_FRAMEWORK/ folder.
 
 ## Attribution

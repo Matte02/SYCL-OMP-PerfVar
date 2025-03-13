@@ -1,6 +1,6 @@
 # Define the compiler
-CXX = icpx
-CXXFLAGS = -std=c++20 -O3 -Wall  -Iinclude -I../common -DLOOP
+CXX = g++
+CXXFLAGS = -std=c++20 -O3 -Wall  -Iinclude -I../common -DLOOP -DDEBUG
 LDFLAGS = -lpthread -lrt
 
 # Shared library (built by common/)
