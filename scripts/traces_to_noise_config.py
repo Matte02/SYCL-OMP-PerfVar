@@ -9,6 +9,8 @@ import json
 DEFAULT_WORKLOAD_NAME = "main"
 DEFAULT_OUTPUT_FILENAME = "noise_config.json"
 DEFAULT_MERGE_THRESHOLD = 0
+DEFAULT_COMBINE_SMT = False
+
 
 def parse_arguments():
     """
@@ -52,6 +54,14 @@ def parse_arguments():
         help="Time gap in nanoseconds to consider two consecutive noise events as the same (default: 0)."
     )
 
+    # Optional argument for the merging of simultaneous multithreaded traces (defaults to 0)
+    parser.add_argument(
+        "-smt", "--combine_threads", 
+        type=bool, 
+        default=DEFAULT_COMBINE_SMT, 
+        help="Sets if two consecutive threads from traces should be combined into one, thereby merging simultaneous multithreading (default: False)."
+    )
+
     return parser.parse_args()
 
 def main():
@@ -68,11 +78,11 @@ def main():
     print(f"Number of traces: {len(raw_trace_files)}")
 
     # Find the worst trace (one with the maximum duration)
-    worst_trace = get_worst_case_dict(raw_trace_files, trace_path, args.workload_name)
+    worst_trace = get_worst_case_dict(raw_trace_files, trace_path, args.workload_name, args.combine_threads)
     print(f"Worst trace duration: {worst_trace[1]}")
 
     # Compute average trace to filter out inherent noise
-    average_dict = compute_average_trace(raw_trace_files, trace_path, args.workload_name)
+    average_dict = compute_average_trace(raw_trace_files, trace_path, args.workload_name, args.combine_threads)
     print(f"Average dict created")
 
     # Clean the worst trace by removing average noise
@@ -230,7 +240,7 @@ def clean_worst_trace(worst_trace, average_dict):
                     worst_trace[cpu][task][closest_idx] = (closest_timing, closest_duration - avg_duration)
 
 #Used for multiprocessed map call
-def get_occurences_duration_dict(file, trace_path, workload_name):
+def get_occurences_duration_dict(file, trace_path, workload_name, combine_threads=False):
     """
     Produces a dictionary consisting of the amount of occurences of a 
     task and the total duration on each present CPUs
@@ -255,7 +265,7 @@ def get_occurences_duration_dict(file, trace_path, workload_name):
                 o_d_dict[cpu][task] = (old_val[0]+1, old_val[1]+duration)
     return o_d_dict
 
-def compute_average_trace(raw_trace_files, trace_path, workload_name):
+def compute_average_trace(raw_trace_files, trace_path, workload_name, combine_threads=False):
     """
     Produces a dictionary consisting of the average amount of occurences of a 
     task and the average duration on each present CPUs
@@ -271,7 +281,7 @@ def compute_average_trace(raw_trace_files, trace_path, workload_name):
 
     #Get occurences and duration of tasks on all cpus on all traces
     pool = Pool()
-    o_d_list = pool.starmap(get_occurences_duration_dict, [(file, trace_path, workload_name) for file in raw_trace_files])
+    o_d_list = pool.starmap(get_occurences_duration_dict, [(file, trace_path, workload_name, combine_threads) for file in raw_trace_files])
     
     average_dict: dict[int, dict[str, (int, int)]]
     average_dict = dict()
@@ -290,7 +300,7 @@ def compute_average_trace(raw_trace_files, trace_path, workload_name):
     
     return average_dict
 
-def get_cpu_dict(file, trace_path, workload_name):
+def get_cpu_dict(file, trace_path, workload_name, combine_threads=False):
     """
     Parses a trace file and extracts relevant information for CPU traces.
 
@@ -340,7 +350,11 @@ def get_cpu_dict(file, trace_path, workload_name):
                     duration = int(match[4])                    # Duration (ns)
                     if (task == workload_name and (workload_start_time == -1 or workload_start_time > start) ):
                         workload_start_time = start
-                    cpu_dict.setdefault(cpu_id, {}).setdefault(task, []).append((start, duration))
+                    #Store to cpu_dict and combine threads if this is enabled to remove SMT threads
+                    if combine_threads:
+                        cpu_dict.setdefault(cpu_id-(cpu_id%2), {}).setdefault(task, []).append((start, duration))
+                    else:
+                        cpu_dict.setdefault(cpu_id, {}).setdefault(task, []).append((start, duration))
 
         m_cpu_dict: dict[int, dict[str, list[(int, int)]]]#= dict({'NULL': dict({'NULL': []})})
         m_cpu_dict = dict()
@@ -388,7 +402,7 @@ def get_file_duration_tuple(file, trace_path):
                             total_duration = int(match.group(1).replace(".", ""))
                     return (file, total_duration)
     
-def get_worst_case_dict(raw_trace_files, trace_path, workload_name):
+def get_worst_case_dict(raw_trace_files, trace_path, workload_name, combine_threads=False):
     """
     Finds and fetches the dictionary of the trace with worst-case duration
     
@@ -405,7 +419,7 @@ def get_worst_case_dict(raw_trace_files, trace_path, workload_name):
     duration_list = pool.starmap(get_file_duration_tuple, [(file, trace_path) for file in raw_trace_files])
         
     worst_case_file, _ = max(duration_list, key=lambda x: x[1])
-    return (get_cpu_dict(worst_case_file, trace_path, workload_name))
+    return (get_cpu_dict(worst_case_file, trace_path, workload_name, combine_threads))
 
 
 if __name__ == "__main__":
