@@ -41,7 +41,7 @@ binname=("main" "main" "miniFE.x")  # Binary names
 #makefilepath=("." ".")  # Path extensions for Makefiles
 #binname=("main" "main")  # Binary names
 frameworks=("omp" "sycl")
-
+config_file_name="noise_config.json"
 #Handle arguments
 for i in "$@"; do
   case $i in
@@ -57,9 +57,10 @@ for i in "$@"; do
         INJECT_NOISE_VALUE="yes"
         NOISE_INJECT_ON_ANY_CORE="yes"
         noise_config_file="${i#*=}"
+        config_file_name=$(basename -- "$noise_config_file") 
         echo "Copy Noise config file at: $noise_config_file to $logfolderpath"
         cp  "$noise_config_file" "$logfolderpath/"
-        key_count=$(jq 'length' $logfolderpath/noise_config.json)
+        key_count=$(jq 'length' $logfolderpath/$config_file_name)
         for k in "${!benchparameters[@]}"; do
             benchparameters[$k]="${benchparameters[$k]} $key_count"
         done
@@ -74,9 +75,10 @@ for i in "$@"; do
         INJECT_NOISE_VALUE="yes"
         NOISE_INJECT_ON_ANY_CORE="no"
         noise_config_file="${i#*=}"
+        config_file_name=$(basename -- "$noise_config_file") 
         echo "Copy Noise config file at: $noise_config_file to $logfolderpath"
         cp  "$noise_config_file" "$logfolderpath/"
-        key_count=$(jq 'length' $logfolderpath/noise_config.json)
+        key_count=$(jq 'length' $logfolderpath/$config_file_name)
         for k in "${!benchparameters[@]}"; do
             benchparameters[$k]="${benchparameters[$k]} $key_count"
         done
@@ -238,9 +240,9 @@ for bench in ${benches[@]}; do
                 cd "$CURPATH" || exit 1
                 output_file="$logpath/$curbench-$SYSTEM.noiseout" 2>&1
                 if [ "$NOISE_INJECT_ON_ANY_CORE" = "yes" ]; then
-                    python3 "$CURPATH/run_noise.py" --verbose --debug --any-core --json-file "$logfolderpath/noise_config.json" >> $output_file&
+                    python3 "$CURPATH/run_noise.py" --verbose --debug --any-core --json-file "$logfolderpath/$config_file_name" >> $output_file&
                 else
-                    python3 "$CURPATH/run_noise.py" --verbose --debug --json-file "$logfolderpath/noise_config.json" >> $output_file&
+                    python3 "$CURPATH/run_noise.py" --verbose --debug --json-file "$logfolderpath/$config_file_name" >> $output_file&
                 fi
                 noise_pid=$!
                 cd "$benchpath/$curbench/${makefilepath[$benchidx]}" || exit 1
@@ -277,7 +279,7 @@ for bench in ${benches[@]}; do
         elif [ $TRACE -eq 1 ]; then
             cd "$CURPATH" || exit 1
             python3 "$CURPATH/traces_to_noise_config.py" "$logpath"
-            mv "$CURPATH/noise_config.json" "$logpath" 
+            mv "$CURPATH/$config_file_name" "$logpath" 
             cd "$benchpath/$curbench/${makefilepath[$benchidx]}" || exit 1
         fi
         echo "End: $curbench"
