@@ -86,7 +86,7 @@ def main():
     print(f"Average dict created")
 
     # Clean the worst trace by removing average noise
-    clean_worst_trace(worst_trace[0], average_dict)
+    clean_worst_trace(worst_trace, average_dict)
     print(f"Cleaned worst case")
 
     # Separate the workload execution from the noise traces
@@ -210,39 +210,40 @@ def clean_worst_trace(worst_trace, average_dict):
     Removes the inherent average noise from the worst trace.
 
     Args:
-        worst_trace (dict): The trace data for the worst trace (with CPU task timings).
+        worst_trace (dict, duration): The trace data for the worst trace (with CPU task timings).
         average_dict (dict): The average trace data to filter out from the worst trace.
     """
     # TODO: Parallelize loop
-    for cpu, tasks in worst_trace.items():
+    for cpu, tasks in worst_trace[0].items():
         for task, _ in tasks.items():
             try:
-                avg_occurences, avg_duration = average_dict[cpu][task]
+                avg_frequency, avg_duration = average_dict[cpu][task]
             except:
                 continue
-            for x in range(avg_occurences):
-                if len(worst_trace[cpu][task]) <= 0:     # Skip if no data available
+            print(int(avg_frequency * worst_trace[1]))
+            for x in range(int(avg_frequency * worst_trace[1])):
+                if len(worst_trace[0][cpu][task]) <= 0:     # Skip if no data available
                     break
                 # Find the closest matching duration in worst-case trace
                 closest_idx = min(
-                    range(len(worst_trace[cpu][task])), 
-                    key=lambda i: abs(worst_trace[cpu][task][i][1] - avg_duration)
+                    range(len(worst_trace[0][cpu][task])), 
+                    key=lambda i: abs(worst_trace[0][cpu][task][i][1] - avg_duration)
                 )
 
                 # Adjust or remove the closest matching entry
-                closest_timing, closest_duration = worst_trace[cpu][task][closest_idx]
+                closest_timing, closest_duration = worst_trace[0][cpu][task][closest_idx]
                 if closest_duration - avg_duration < 0:
-                    worst_trace[cpu][task] = (
-                        worst_trace[cpu][task][:closest_idx] + 
-                        worst_trace[cpu][task][closest_idx + 1:]
+                    worst_trace[0][cpu][task] = (
+                        worst_trace[0][cpu][task][:closest_idx] + 
+                        worst_trace[0][cpu][task][closest_idx + 1:]
                     )
                 else:
-                    worst_trace[cpu][task][closest_idx] = (closest_timing, closest_duration - avg_duration)
+                    worst_trace[0][cpu][task][closest_idx] = (closest_timing, closest_duration - avg_duration)
 
 #Used for multiprocessed map call
-def get_occurences_duration_dict(file, trace_path, workload_name, combine_threads=False):
+def get_frequency_duration_dict(file, trace_path, workload_name, combine_threads=False):
     """
-    Produces a dictionary consisting of the amount of occurences of a 
+    Produces a dictionary consisting of the frequency of a 
     task and the total duration on each present CPUs
         
     Args:
@@ -251,24 +252,30 @@ def get_occurences_duration_dict(file, trace_path, workload_name, combine_thread
         workload_name (str): The name of the task representing the workload.
 
     Returns:
-        dict: A dictionary containing the total occurences and duration for each CPU and task.
+        dict: A dictionary containing the frequency and duration for each CPU and task.
     """
     trace  = get_cpu_dict(file, trace_path, workload_name)
-    o_d_dict: dict[int, dict[str, (int, int)]]
-    o_d_dict = dict()
+    #f_d_dict: dict[int, dict[str, (int, int)]]
+    f_d_dict = dict()
     for cpu, tasks in trace[0].items():
         for task, timings in tasks.items():
             for timing in timings:
                 duration = timing[1]
-                old_val = o_d_dict.setdefault(cpu, {}).setdefault(task, (0, 0))
+                old_val = f_d_dict.setdefault(cpu, {}).setdefault(task, (0, 0))
                 #Increment occurence amount and add to total duration of this task
-                o_d_dict[cpu][task] = (old_val[0]+1, old_val[1]+duration)
-    return o_d_dict
+                f_d_dict[cpu][task] = (old_val[0]+1, old_val[1]+duration)
+
+            #Convert task occurences to frequency of task
+            if cpu in f_d_dict:
+                if task in f_d_dict[cpu]:
+                    f_d_dict[cpu][task] = (f_d_dict[cpu][task][0] / trace[1], f_d_dict[cpu][task][1])
+
+    return f_d_dict
 
 def compute_average_trace(raw_trace_files, trace_path, workload_name, combine_threads=False):
     """
-    Produces a dictionary consisting of the average amount of occurences of a 
-    task and the average duration on each present CPUs
+    Produces a dictionary consisting of the average frequency of a 
+    task and the average duration on each present thread
         
     Args:
         raw_trace_files [str]: List of trace files to be evaluated.
@@ -276,28 +283,27 @@ def compute_average_trace(raw_trace_files, trace_path, workload_name, combine_th
         workload_name (str): The name of the task representing the workload.
 
     Returns:
-        dict: A dictionary containing the average occurences and durations for each CPU and task.
+        dict: A dictionary containing the average frequency and durations for each CPU and task.
     """
 
-    #Get occurences and duration of tasks on all cpus on all traces
+    #Get frequency and duration of tasks on all cpus on all traces
     pool = Pool()
-    o_d_list = pool.starmap(get_occurences_duration_dict, [(file, trace_path, workload_name, combine_threads) for file in raw_trace_files])
+    f_d_list = pool.starmap(get_frequency_duration_dict, [(file, trace_path, workload_name, combine_threads) for file in raw_trace_files])
     
     average_dict: dict[int, dict[str, (int, int)]]
     average_dict = dict()
 
-    # Accumulate occurence and duration of all tasks in traces
-    for o_d_dict in o_d_list:
-        for cpu, tasks in o_d_dict.items():
-            for task, (occurences, duration) in tasks.items():
+    # Accumulate frequency and duration of all tasks in traces
+    for f_d_dict in f_d_list:
+        for cpu, tasks in f_d_dict.items():
+            for task, (frequency, duration) in tasks.items():
                 old_val = average_dict.setdefault(cpu, {}).setdefault(task, (0, 0))
-                average_dict[cpu][task] = (old_val[0]+occurences, old_val[1]+duration)
+                average_dict[cpu][task] = (old_val[0]+frequency, old_val[1]+duration)
 
-    # Calculate the average duration and occurences for each task on each CPU
+    # Calculate the average frequency and duration for each task on each CPU
     for cpu, tasks in average_dict.items():
         for task, avg_tup in tasks.items():
-            average_dict[cpu][task] = (int(average_dict[cpu][task][0]//len(raw_trace_files)), int(average_dict[cpu][task][1]//len(raw_trace_files)))
-    
+            average_dict[cpu][task] = (float(average_dict[cpu][task][0]/len(raw_trace_files)), int(average_dict[cpu][task][1]//len(raw_trace_files)))
     return average_dict
 
 def get_cpu_dict(file, trace_path, workload_name, combine_threads=False):
@@ -368,11 +374,11 @@ def get_cpu_dict(file, trace_path, workload_name, combine_threads=False):
                     for timing in timings:
                         start = timing[0]
                         duration = timing[1]
-                        # Noise started after workload
-                        if start >= workload_start_time:
+                        # Noise started after workload and before end
+                        if start >= workload_start_time and start<=workload_start_time+total_duration:
                             adjusted_timings.append((start-workload_start_time, duration))
                         # Noise started before workload but stretches past workload start
-                        elif (start+duration) > workload_start_time:
+                        elif (start+duration) > workload_start_time and start<=workload_start_time+total_duration:
                             adjusted_timings.append((0, (start+duration)-workload_start_time))
                 else:
                     print("No workload found in trace")
