@@ -5,6 +5,11 @@ CC = g++
 CXXFLAGS = -O3 -std=c++17 -I. -DBARRIER_TIMEOUT # Include current directory for shared headers
 LDFLAGS = 
 
+# Check if BUSY_WAIT should be defined
+ifneq ($(filter 1 yes true,$(USE_BUSY_WAIT)),)
+    CXXFLAGS += -DBUSY_WAIT
+endif
+
 # Shared source files
 SRC = barrier_sync.cpp
 OBJS = $(SRC:.cpp=.o)
