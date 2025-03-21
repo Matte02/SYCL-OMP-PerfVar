@@ -250,6 +250,8 @@ def get_frequency_duration_dict(file, trace_path, workload_name, combine_threads
         file (str): The trace file name.
         trace_path (str): The path to the directory containing the trace files.
         workload_name (str): The name of the task representing the workload.
+        combine_threads (bool): Controls whether or not two consecutive threads should be merged into one thread. 
+            Use when traces were gathered on machine with SMT enabled
 
     Returns:
         dict: A dictionary containing the frequency and duration for each CPU and task.
@@ -281,6 +283,8 @@ def compute_average_trace(raw_trace_files, trace_path, workload_name, combine_th
         raw_trace_files [str]: List of trace files to be evaluated.
         trace_path (str): The path to the directory containing the trace files.
         workload_name (str): The name of the task representing the workload.
+        combine_threads (bool): Controls whether or not two consecutive threads should be merged into one thread. 
+            Use when traces were gathered on machine with SMT enabled
 
     Returns:
         dict: A dictionary containing the average frequency and durations for each CPU and task.
@@ -314,6 +318,8 @@ def get_cpu_dict(file, trace_path, workload_name, combine_threads=False):
         file (str): The trace file name.
         trace_path (str): The path to the directory containing the trace files.
         workload_name (str): The name of the task representing the workload.
+        combine_threads (bool): Controls whether or not two consecutive threads should be merged into one thread. 
+            Use when traces were gathered on machine with SMT enabled
 
     Returns:
         tuple: A tuple containing a dictionary of CPU traces and the total duration.
@@ -416,7 +422,9 @@ def get_worst_case_dict(raw_trace_files, trace_path, workload_name, combine_thre
         raw_trace_files [str]: List of trace files to be evaluated.
         trace_path (str): The path to the directory containing the trace files.
         workload_name (str): The name of the task representing the workload.
-
+        combine_threads (bool): Controls whether or not two consecutive threads should be merged into one thread. 
+            Use when traces were gathered on machine with SMT enabled
+            
     Returns:
         tuple: A tuple containing a dictionary of CPU traces and the total duration.
     """
