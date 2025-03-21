@@ -86,6 +86,17 @@ void wait_for_barrier(int total_processes)
     sem_post(ready);
 
     int ready_count;
+
+#ifdef BUSY_WAIT
+    // Busy wait until all processes are ready
+    do
+    {
+        sem_getvalue(ready, &ready_count);
+    } while (ready_count < total_processes);
+
+    // Signal start only once all processes are ready
+    sem_post(start);
+#else
     sem_getvalue(ready, &ready_count);
 
     // Last process to arrive releases all waiting processes
@@ -96,7 +107,7 @@ void wait_for_barrier(int total_processes)
             sem_post(start);
         }
     }
-
+#endif
     // Wait until the barrier is lifted
     sem_wait(start);
 

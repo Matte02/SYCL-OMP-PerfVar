@@ -172,7 +172,7 @@ export DPCPP_CPU_PLACES=$places
 make -C ../noiseinjector clean
 make -C ../noiseinjector
 make -C ../common clean
-make -C ../common
+make -C ../common USE_BUSY_WAIT=1
 
 # Define a cleanup function
 cleanup() {
