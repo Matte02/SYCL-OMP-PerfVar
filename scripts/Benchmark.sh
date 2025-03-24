@@ -22,6 +22,12 @@ BABELSTREAM_PARAMS="-s 33554432 -n 10"
 #BABELSTREAM_PARAMS="-s 33554432"
 MINIFE_PARAMS="-nx 128 -ny 128 -nz 128"
 
+NBODY_PARAMS_NOISE=$NBODY_PARAMS
+#MINIFE_PARAMS="-nx 256 -ny 256 -nz 128"
+BABELSTREAM_PARAMS_NOISE="$BABELSTREAM_PARAMS -p"
+#BABELSTREAM_PARAMS="-s 33554432"
+MINIFE_PARAMS_NOISE="$MINIFE_PARAMS -p"
+
 # Path to benchmarks
 benchpath="$CURPATH/../benchmarks"
 benchtime=$(date '+%d-%m-%Y-%H:%M:%S')
@@ -30,6 +36,7 @@ logfolderpath="$benchpath/logs/benchrun-$benchtime"
 #Default parameters
 benches=("nbody" "babelstream" "miniFE")
 benchparameters=("$NBODY_PARAMS" "$BABELSTREAM_PARAMS" "$MINIFE_PARAMS")
+benchparametersnoise=("$NBODY_PARAMS_NOISE" "$BABELSTREAM_PARAMS_NOISE" "$MINIFE_PARAMS_NOISE")
 makefilepath=("." "." "src")  # Path extensions for Makefiles
 binname=("main" "main" "miniFE.x")  # Binary names
 #benches=("nbody" "babelstream")
@@ -59,18 +66,20 @@ for i in "$@"; do
         INJECT_NOISE_VALUE="yes"
         NOISE_INJECT_ON_ANY_CORE="yes"
         noise_config_file="${i#*=}"
+        benchparameters=$benchparametersnoise
         shift # past argument=value
         ;;
     -n=*)
         INJECT_NOISE_VALUE="yes"
         NOISE_INJECT_ON_ANY_CORE="no"
         noise_config_file="${i#*=}"
-            
+        benchparameters=$benchparametersnoise
         shift # past argument=value
         ;;
     -b=*)
         benches=( ${benches["${i#*=}"]} )
         benchparameters=( "${benchparameters["${i#*=}"]}" )
+        benchparametersnoise=( "${benchparametersnoise["${i#*=}"]}" )
         makefilepath=( "${makefilepath["${i#*=}"]}" )  # Path extensions for Makefiles
         binname=( "${binname["${i#*=}"]}" )  # Binary names
         shift # past argument=value
