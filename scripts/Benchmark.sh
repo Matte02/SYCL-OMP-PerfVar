@@ -26,10 +26,6 @@ MINIFE_PARAMS="-nx 128 -ny 128 -nz 128"
 benchpath="$CURPATH/../benchmarks"
 benchtime=$(date '+%d-%m-%Y-%H:%M:%S')
 logfolderpath="$benchpath/logs/benchrun-$benchtime"
-mkdir -p "$logfolderpath"
-
-graphfolder="$logfolderpath/graphs"
-mkdir -p "$graphfolder"
 
 #Default parameters
 benches=("nbody" "babelstream" "miniFE")
@@ -41,10 +37,16 @@ binname=("main" "main" "miniFE.x")  # Binary names
 #makefilepath=("." ".")  # Path extensions for Makefiles
 #binname=("main" "main")  # Binary names
 frameworks=("omp" "sycl")
-config_file_name="noise_config.json"
+noise_config_file="noise_config.json"
+config_file_name=$noise_config_file
 #Handle arguments
 for i in "$@"; do
   case $i in
+        -folder_name=*)
+        FOLDER_NAME="${i#*=}"
+        logfolderpath="$benchpath/logs/$FOLDER_NAME-$benchtime"
+        shift # past argument=value
+            ;;
     -i=*)
         ITER="${i#*=}"
         shift # past argument=value
@@ -57,36 +59,13 @@ for i in "$@"; do
         INJECT_NOISE_VALUE="yes"
         NOISE_INJECT_ON_ANY_CORE="yes"
         noise_config_file="${i#*=}"
-        config_file_name=$(basename -- "$noise_config_file") 
-        echo "Copy Noise config file at: $noise_config_file to $logfolderpath"
-        cp  "$noise_config_file" "$logfolderpath/"
-        key_count=$(jq 'length' $logfolderpath/$config_file_name)
-        for k in "${!benchparameters[@]}"; do
-            benchparameters[$k]="${benchparameters[$k]} $key_count"
-        done
-        #This should ensure that we are able to reach 100% utilization for the realtime processes
-        echo 1000000 > /proc/sys/kernel/sched_rt_runtime_us
-        # TODO Fix to allow different noises for different frameworks.
-        python3 "$CURPATH/noise_config_graphs.py" "${i#*=}" "$graphfolder/injected_noise"
-        echo "Running: $CURPATH/noise_config_graphs.py" "${i#*=}" "$graphfolder/injected_noise"
         shift # past argument=value
         ;;
     -n=*)
         INJECT_NOISE_VALUE="yes"
         NOISE_INJECT_ON_ANY_CORE="no"
         noise_config_file="${i#*=}"
-        config_file_name=$(basename -- "$noise_config_file") 
-        echo "Copy Noise config file at: $noise_config_file to $logfolderpath"
-        cp  "$noise_config_file" "$logfolderpath/"
-        key_count=$(jq 'length' $logfolderpath/$config_file_name)
-        for k in "${!benchparameters[@]}"; do
-            benchparameters[$k]="${benchparameters[$k]} $key_count"
-        done
-        #This should ensure that we are able to reach 100% utilization for the realtime processes
-        echo 1000000 > /proc/sys/kernel/sched_rt_runtime_us
-        # TODO Allow different noises for different frameworks.
-        python3 "$CURPATH/noise_config_graphs.py" "${i#*=}" "$graphfolder/injected_noise"
-        echo "Running: $CURPATH/noise_config_graphs.py" "${i#*=}" "$graphfolder/injected_noise"
+            
         shift # past argument=value
         ;;
     -b=*)
@@ -135,6 +114,26 @@ for i in "$@"; do
         ;;
   esac
 done
+mkdir -p "$logfolderpath"
+graphfolder="$logfolderpath/graphs"
+mkdir -p "$graphfolder"
+
+
+if [ "$INJECT_NOISE_VALUE" = "yes" ]; then
+    config_file_name=$(basename -- "$noise_config_file")
+    echo "Copy Noise config file at: $noise_config_file to $logfolderpath"
+    cp  "$noise_config_file" "$logfolderpath/"
+    key_count=$(jq 'length' $logfolderpath/$config_file_name)
+    for k in "${!benchparameters[@]}"; do
+        benchparameters[$k]="${benchparameters[$k]} $key_count"
+    done
+    
+    #This should ensure that we are able to reach 100% utilization for the realtime processes
+    echo 1000000 > /proc/sys/kernel/sched_rt_runtime_us
+    # TODO Allow different noises for different frameworks.
+    python3 "$CURPATH/noise_config_graphs.py" "$noise_config_file" "$graphfolder/injected_noise"
+    echo "Running: $CURPATH/noise_config_graphs.py" "$noise_config_file" "$graphfolder/injected_noise"
+fi
 
 # Source Intel OneAPI environment
 source /opt/intel/oneapi/setvars.sh
@@ -278,7 +277,7 @@ for bench in ${benches[@]}; do
         #Generate noise injection configuration
         elif [ $TRACE -eq 1 ]; then
             cd "$CURPATH" || exit 1
-            python3 "$CURPATH/traces_to_noise_config.py" "$logpath"
+            python3 "$CURPATH/traces_to_noise_config.py" "$logpath" "-o $config_file_name"
             mv "$CURPATH/$config_file_name" "$logpath" 
             cd "$benchpath/$curbench/${makefilepath[$benchidx]}" || exit 1
         fi
