@@ -26,8 +26,6 @@ static void handler(int sig, siginfo_t *si, void *uc) {
 }
 #endif
 
-bool should_exit = false;
-
 int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::string core_id) {
     //Set seed
     int seed = rand();
@@ -78,7 +76,7 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::st
     // Sync up all processes to start at the same time.
     wait_for_barrier(number_of_processes);
     #ifdef LOOP
-    while(!should_exit){
+    while(true){
     #endif
         auto total_delay = 0;
         auto max_delay = 0;
@@ -89,7 +87,7 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::st
         // Record the program's absolute start time
         auto program_start_time = std::chrono::high_resolution_clock::now();
 
-        for (const auto& noise : noises) {
+        for (const auto& noise : noises) {        
             // Calculate relative wait time for this noise
             auto current_time = std::chrono::high_resolution_clock::now();
             auto wait_time = std::chrono::duration<signed long long, std::nano>(noise.start_time) -
@@ -205,9 +203,9 @@ int parseJSON(std::vector<Noise>& noise_schedule, const std::string& json_file, 
 }
 
 void termHandler( int signum ) {
-   should_exit = true;
    std::cout << "KILL" <<std::endl;
-   return;
+   cleanup_semaphores();
+   exit(0);
 }
 
 int main(int argc, char* argv[]) {
