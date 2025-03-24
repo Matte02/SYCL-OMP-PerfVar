@@ -156,7 +156,7 @@ if [ "$THREAD_PINNING" = "yes" ]; then
     if [ "$HOUSEHOLDING" = "yes" ]; then
         housholding_cpus=$((threads / 8)) #12.5% of available cpus
         places="{0}:$(($THREADS - $housholding_cpus)):1"
-        $THREADS=$(($THREADS - $housholding_cpus))
+        THREADS=$(($THREADS - $housholding_cpus))
     fi
 fi
 
@@ -167,11 +167,10 @@ export OMP_PROC_BIND=$proc_bind
 export DPCPP_CPU_NUM_CUS=$THREADS
 export DPCPP_CPU_PLACES=$places
 
-
+make -C ../common clean
+make -C ../common USE_BUSY_WAIT=0
 make -C ../noiseinjector clean
 make -C ../noiseinjector
-make -C ../common clean
-make -C ../common USE_BUSY_WAIT=1
 
 # Define a cleanup function
 cleanup() {

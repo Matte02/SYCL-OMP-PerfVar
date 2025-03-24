@@ -86,10 +86,6 @@ def cleanup(signum, frame):
     print("CLEANUP")
     for p, core_id in processes_list:
         os.killpg(os.getpgid(p.pid), signal.SIGTERM)
-    for p, core_id in processes_list:
-        status = os.wait()
-        print(f"Process with pid {status[0]} finished.")
-    sys.exit(0)
 
 def main():
     parser = argparse.ArgumentParser(description="Run cpuoccupy on multiple cores in parallel using a single JSON configuration.")
