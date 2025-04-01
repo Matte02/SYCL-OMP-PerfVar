@@ -59,10 +59,15 @@ def main():
     #plt.title(os.path.basename(input_folder))
     fig, ax = plt.subplots()
     #plt.grid(axis = 'y', linestyle = '--')
+    keys = exec_dict.keys()
+    values = exec_dict.values()
+    s = sorted(zip(keys, values), key = lambda y: tuple(reversed(y[0].split("-"))))
+    keys = [i[0] for i in s]
+    values = [i[1] for i in s]
 
     ax.set_title(os.path.basename(input_folder))
-    ax.boxplot(exec_dict.values())
-    ax.set_xticklabels(exec_dict.keys(), fontsize=10)
+    ax.boxplot(values)
+    ax.set_xticklabels(keys, fontsize=10)
     fig.autofmt_xdate()   
     
     plt.savefig(os.path.join(output_folder, f"combined_boxplot.png"), dpi=250)

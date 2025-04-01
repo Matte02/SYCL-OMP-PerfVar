@@ -49,7 +49,7 @@ config_file_name=$noise_config_file
 #Handle arguments
 for i in "$@"; do
   case $i in
-        -folder_name=*)
+    -folder_name=*)
         FOLDER_NAME="${i#*=}"
         logfolderpath="$benchpath/logs/$FOLDER_NAME-$benchtime"
         shift # past argument=value
@@ -285,7 +285,7 @@ for bench in ${benches[@]}; do
         #Generate noise injection configuration
         elif [ $TRACE -eq 1 ]; then
             cd "$CURPATH" || exit 1
-            python3 "$CURPATH/traces_to_noise_config.py" "$logpath" "-o $config_file_name"
+            python3 $CURPATH/traces_to_noise_config.py $logpath -o $config_file_name
             mv "$CURPATH/$config_file_name" "$logpath" 
             cd "$benchpath/$curbench/${makefilepath[$benchidx]}" || exit 1
         fi
