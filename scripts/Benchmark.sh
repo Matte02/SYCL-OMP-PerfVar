@@ -162,13 +162,19 @@ proc_bind="false" # If proc_bind is set to false for OMP env var then threads
 if [ "$THREAD_PINNING" = "yes" ]; then
     proc_bind="spread"
     export DPCPP_CPU_CU_AFFINITY=$proc_bind
-    if [ "$HOUSEHOLDING" = "yes" ]; then
-        housholding_cpus=$((threads / 8)) #12.5% of available cpus
-        places="{0}:$(($THREADS - $housholding_cpus)):1"
-        THREADS=$(($THREADS - $housholding_cpus))
-    fi
 fi
 
+if [ "$HOUSEHOLDING" = "yes" ]; then
+    housekeeping_cpus=$((($THREADS + 8 - 1) / 8)) #>=12.5% of available cpus
+    #echo Deallocated housekeeping places = $housekeeping_cpus
+    #places="{0}:$(($THREADS - $housekeeping_cpus)):1"
+    #places="{0:$(($THREADS - $housekeeping_cpus))}"
+    #echo Places is now = $places
+    THREADS=$(($THREADS - $housekeeping_cpus))
+    #echo Threads are now = $THREADS
+fi
+
+#export OMP_DISPLAY_ENV=VERBOSE
 export OMP_NUM_THREADS=$THREADS
 export OMP_PLACES=$places
 export OMP_PROC_BIND=$proc_bind
