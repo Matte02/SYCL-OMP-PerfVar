@@ -20,7 +20,7 @@ NBODY_PARAMS="10000 100"
 #MINIFE_PARAMS="-nx 256 -ny 256 -nz 128"
 BABELSTREAM_PARAMS="-s 33554432 -n 10"
 #BABELSTREAM_PARAMS="-s 33554432"
-MINIFE_PARAMS="-nx 128 -ny 128 -nz 128"
+MINIFE_PARAMS="-nx 64 -ny 64 -nz 64"
 
 NBODY_PARAMS_NOISE=$NBODY_PARAMS
 #MINIFE_PARAMS="-nx 256 -ny 256 -nz 128"
@@ -174,13 +174,29 @@ if [ "$HOUSEHOLDING" = "yes" ]; then
     #echo Threads are now = $THREADS
 fi
 
-#export OMP_DISPLAY_ENV=VERBOSE
-export OMP_NUM_THREADS=$THREADS
-export OMP_PLACES=$places
-export OMP_PROC_BIND=$proc_bind
+if [ ${#frameworks[@]} = 1 ]; then
+    if [ ${frameworks[0]} = "omp" ]; then
+        #export OMP_DISPLAY_ENV=VERBOSE
+        export OMP_NUM_THREADS=$THREADS
+        export OMP_PLACES=$places
+        export OMP_PROC_BIND=$proc_bind
+    elif [ ${frameworks[0]} = "sycl" ]; then
+        export DPCPP_CPU_NUM_CUS=$THREADS
+        export DPCPP_CPU_PLACES=$places
+    else
+        echo "Unimplemented framework"
+        exit 1
+    fi
+else
+    echo "Only one framework is currently allowed to execute at a time due to observed possbilities of environment variable conflicts."
+    echo "Use -f=X to select framework"
+    exit 1
+fi
 
-export DPCPP_CPU_NUM_CUS=$THREADS
-export DPCPP_CPU_PLACES=$places
+echo "Env vars set"
+echo $THREADS
+echo $places
+echo $proc_bind
 
 make -C ../common clean
 make -C ../common USE_BUSY_WAIT=0
