@@ -307,7 +307,8 @@ for bench in ${benches[@]}; do
         #Generate noise injection configuration
         elif [ $TRACE -eq 1 ]; then
             cd "$CURPATH" || exit 1
-            python3 $CURPATH/traces_to_noise_config.py $logpath -o $config_file_name -w ${benches[$benchidx]}
+            echo "Main workload name: ${benches[$benchidx]}"
+            python3 $CURPATH/traces_to_noise_config.py $logpath -o $config_file_name -w ${binname[$benchidx]}
             mv "$CURPATH/$config_file_name" "$logpath" 
             cd "$benchpath/$curbench/${makefilepath[$benchidx]}" || exit 1
         fi
