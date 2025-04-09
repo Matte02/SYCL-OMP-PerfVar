@@ -86,11 +86,11 @@ def main():
     print(f"Average dict created")
 
     # Clean the worst trace by removing average noise
-    clean_worst_trace(worst_trace, average_dict)
+    worst_trace = clean_worst_trace(worst_trace, average_dict)
     print(f"Cleaned worst case")
 
     # Separate the workload execution from the noise traces
-    noise_dict, _ = seperate_traces(worst_trace[0], args.workload_name)
+    noise_dict, _ = seperate_traces(worst_trace[0], args.workload_name, worst_trace[1])
     print(f"Seperated workload from trace")
 
     # Merge consecutive noise events into one continuous event using the provided merge threshold
@@ -133,7 +133,10 @@ def combine_consecutive_noises(noise_dict, merge_threshold=0):
                     next_duration += duration + max(start - (next_start + next_duration), 0)
                 else:
                     # No overlap, add the previous noise event and reset
-                    combined_noises.append((next_start, next_duration))
+                    # Only include if above merge threshold in duration
+                    if next_duration > merge_threshold:
+                        combined_noises.append((next_start, next_duration))
+
                     next_start = start
                     next_duration = duration
 
@@ -145,7 +148,7 @@ def combine_consecutive_noises(noise_dict, merge_threshold=0):
 
 
 # Separates workload execution traces from noise traces.
-def seperate_traces(cpu_dict, workload_task_name):
+def seperate_traces(cpu_dict, workload_task_name, workload_end):
     """
     Separates workload execution traces from noise traces.
 
@@ -200,6 +203,8 @@ def seperate_traces(cpu_dict, workload_task_name):
 
         # Sort noise timings for this CPU
         noise_dict[cpu] = sorted(noise, key=lambda tup: tup[0])
+        # Append end noise when workload finished. Used to sync looping during noise injection
+        noise_dict[cpu].append((workload_end, 0))
         workload_exec.extend(workload_cpu)
 
     workload_exec.sort(key=lambda tup: tup[0])
@@ -213,32 +218,130 @@ def clean_worst_trace(worst_trace, average_dict):
         worst_trace (dict, duration): The trace data for the worst trace (with CPU task timings).
         average_dict (dict): The average trace data to filter out from the worst trace.
     """
-    # TODO: Parallelize loop
-    for cpu, tasks in worst_trace[0].items():
-        for task, _ in tasks.items():
-            try:
-                avg_frequency, avg_duration = average_dict[cpu][task]
-            except:
-                continue
-            print(int(avg_frequency * worst_trace[1]))
-            for x in range(int(avg_frequency * worst_trace[1])):
-                if len(worst_trace[0][cpu][task]) <= 0:     # Skip if no data available
-                    break
-                # Find the closest matching duration in worst-case trace
-                closest_idx = min(
-                    range(len(worst_trace[0][cpu][task])), 
-                    key=lambda i: abs(worst_trace[0][cpu][task][i][1] - avg_duration)
-                )
 
-                # Adjust or remove the closest matching entry
-                closest_timing, closest_duration = worst_trace[0][cpu][task][closest_idx]
+    inv_wt = {}
+    for cpu, tasks in worst_trace[0].items():
+        for task in tasks:
+            inv_wt.setdefault(task, []).append(tasks[task])
+
+    cpu_amount = len(worst_trace[0])
+
+    # Calculate global average frequency and duration
+    global_avg = {}
+    for cpu, task_dict in average_dict.items():
+        for task, (avg_frequency, avg_duration) in task_dict.items():
+            temp_avg = global_avg.setdefault(task, (float(0), 0))
+            global_avg[task] = (temp_avg[0] + avg_frequency, temp_avg[1] + avg_duration)
+
+    for task, (sum_avg_freq, sum_avg_dur) in global_avg.items():
+        global_avg[task] = (int(sum_avg_freq * worst_trace[1]), int(sum_avg_dur/cpu_amount))
+
+    # Remove average noise from worst_trace
+    for task, (occurences, avg_duration) in global_avg.items():
+        # Create list of average noise removal order
+        abs_timings = [() for x in range(cpu_amount)]
+        for cpu in range(cpu_amount):
+            if task in worst_trace[0][cpu]:
+                abs_timings[cpu] = sorted(enumerate(worst_trace[0][cpu][task]), key=lambda x: abs(x[1][1]-avg_duration))
+
+        rem_dur = 0
+        # Remove (avg freq * worst case trace timeframe) isntances from trace
+        for x in range(occurences):
+            global_closest_idx = -1
+            global_closest_cpu = -1
+            global_closest_abs = -1
+            global_closest_local_idx = -1
+            
+            # Find closest matching noise globally
+            for cpu in range(cpu_amount):
+                closest_idx = -1
+                closest_abs = -1
+                closest_local_idx = -1
+
+                for (local_idx, (idx, (start, dur))) in enumerate(abs_timings[cpu]):
+                    if closest_idx == -1 or abs(dur - avg_duration) < closest_abs:
+                        closest_abs = abs(dur - avg_duration)
+                        closest_idx = idx
+                        closest_local_idx = local_idx
+                    else:
+                        break
+
+                if closest_idx > -1 and (global_closest_cpu == -1 or (
+                    global_closest_abs > closest_abs
+                    )):
+                    global_closest_idx = closest_idx
+                    global_closest_cpu = cpu
+                    global_closest_abs = closest_abs
+                    global_closest_local_idx = closest_local_idx
+            
+            # Adjust or remove the closest matching entry
+            if global_closest_cpu != -1:
+                closest_timing, closest_duration = worst_trace[0][global_closest_cpu][task][global_closest_idx]
                 if closest_duration - avg_duration < 0:
-                    worst_trace[0][cpu][task] = (
-                        worst_trace[0][cpu][task][:closest_idx] + 
-                        worst_trace[0][cpu][task][closest_idx + 1:]
+                    worst_trace[0][global_closest_cpu][task][global_closest_idx] = (closest_timing, 0)
+                    abs_timings[global_closest_cpu] = (
+                        abs_timings[global_closest_cpu][:global_closest_local_idx] + 
+                        abs_timings[global_closest_cpu][global_closest_local_idx + 1:]
                     )
+                    # Increase amount of excess duration accumualted
+                    rem_dur += avg_duration - closest_duration 
                 else:
-                    worst_trace[0][cpu][task][closest_idx] = (closest_timing, closest_duration - avg_duration)
+                    worst_trace[0][global_closest_cpu][task][global_closest_idx] = (closest_timing, closest_duration - avg_duration)
+                    abs_timings[global_closest_cpu][global_closest_local_idx] = (abs_timings[global_closest_cpu][global_closest_local_idx][0], (abs_timings[global_closest_cpu][global_closest_local_idx][1][0], global_closest_abs))
+
+        # Remove smallest noises with the excess gathered when removing noises smaller than avg_duration
+        sorted_timings = [] #[(cpu, (idx, (start, dur)))]
+        for cpu in range(cpu_amount):
+            sorted_timings.extend([(cpu, x) for x in abs_timings[cpu]])
+
+        sorted_timings = sorted(sorted_timings, key=lambda x: x[1][1][1])
+        i = 0
+        # Remove/ reduce smallest noises of this task with the acummulated excess duration
+        while rem_dur>0 and i<len(sorted_timings):
+            cpu = sorted_timings[i][0]
+            idx = sorted_timings[i][1][0]
+            # Consume excess duration
+            if worst_trace[0][cpu][task][idx][1] - rem_dur >= 0:
+                worst_trace[0][cpu][task][idx] = (worst_trace[0][cpu][task][idx][0], worst_trace[0][cpu][task][idx][1] - rem_dur)
+                rem_dur = 0
+            else: #Reduce excess duration
+                worst_trace[0][cpu][task][idx] = (worst_trace[0][cpu][task][idx][0], 0)
+                rem_dur = rem_dur - worst_trace[0][cpu][task][idx][1]
+            i+=1
+        # Filter out noise with duration of 0
+        for cpu in range(cpu_amount):
+            if task in worst_trace[0][cpu]:
+                worst_trace[0][cpu][task] = [x for x in worst_trace[0][cpu][task] if x[1] != 0]
+
+    return worst_trace        
+
+    # Old isolated processor place method
+    ## TODO: Parallelize loop
+    #for cpu, tasks in worst_trace[0].items():
+    #    for task, _ in tasks.items():
+    #        try:
+    #            avg_frequency, avg_duration = average_dict[cpu][task]
+    #        except:
+    #            continue
+    #        print(int(avg_frequency * worst_trace[1]))
+    #        for x in range(int(avg_frequency * worst_trace[1])):
+    #            if len(worst_trace[0][cpu][task]) <= 0:     # Skip if no data available
+    #                break
+    #            # Find the closest matching duration in worst-case trace
+    #            closest_idx = min(
+    #                range(len(worst_trace[0][cpu][task])), 
+    #                key=lambda i: abs(worst_trace[0][cpu][task][i][1] - avg_duration)
+    #            )
+#
+    #            # Adjust or remove the closest matching entry
+    #            closest_timing, closest_duration = worst_trace[0][cpu][task][closest_idx]
+    #            if closest_duration - avg_duration < 0:
+    #                worst_trace[0][cpu][task] = (
+    #                    worst_trace[0][cpu][task][:closest_idx] + 
+    #                    worst_trace[0][cpu][task][closest_idx + 1:]
+    #                )
+    #            else:
+    #                worst_trace[0][cpu][task][closest_idx] = (closest_timing, closest_duration - avg_duration)
 
 #Used for multiprocessed map call
 def get_frequency_duration_dict(file, trace_path, workload_name, combine_threads=False):
@@ -433,6 +536,7 @@ def get_worst_case_dict(raw_trace_files, trace_path, workload_name, combine_thre
     duration_list = pool.starmap(get_file_duration_tuple, [(file, trace_path) for file in raw_trace_files])
         
     worst_case_file, _ = max(duration_list, key=lambda x: x[1])
+    print(worst_case_file)
     return (get_cpu_dict(worst_case_file, trace_path, workload_name, combine_threads))
 
 
