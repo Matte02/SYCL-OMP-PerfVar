@@ -224,7 +224,10 @@ def clean_worst_trace(worst_trace, average_dict):
         for task in tasks:
             inv_wt.setdefault(task, []).append(tasks[task])
 
-    cpu_amount = len(worst_trace[0])
+    #cpu_amount = len(worst_trace[0])
+    cpus = sorted(list(worst_trace[0].keys()))
+    print(cpus)
+    cpu_amount = len(cpus)
 
     # Calculate global average frequency and duration
     global_avg = {}
@@ -239,9 +242,11 @@ def clean_worst_trace(worst_trace, average_dict):
     # Remove average noise from worst_trace
     for task, (occurences, avg_duration) in global_avg.items():
         # Create list of average noise removal order
-        abs_timings = [() for x in range(cpu_amount)]
-        for cpu in range(cpu_amount):
+        abs_timings = [() for x in range(cpus[len(cpus)-1]+1)]
+        print(abs_timings)
+        for cpu in cpus:
             if task in worst_trace[0][cpu]:
+                print(cpu)
                 abs_timings[cpu] = sorted(enumerate(worst_trace[0][cpu][task]), key=lambda x: abs(x[1][1]-avg_duration))
 
         rem_dur = 0
@@ -253,7 +258,7 @@ def clean_worst_trace(worst_trace, average_dict):
             global_closest_local_idx = -1
             
             # Find closest matching noise globally
-            for cpu in range(cpu_amount):
+            for cpu in cpus:
                 closest_idx = -1
                 closest_abs = -1
                 closest_local_idx = -1
@@ -289,27 +294,27 @@ def clean_worst_trace(worst_trace, average_dict):
                     worst_trace[0][global_closest_cpu][task][global_closest_idx] = (closest_timing, closest_duration - avg_duration)
                     abs_timings[global_closest_cpu][global_closest_local_idx] = (abs_timings[global_closest_cpu][global_closest_local_idx][0], (abs_timings[global_closest_cpu][global_closest_local_idx][1][0], global_closest_abs))
 
-        # Remove smallest noises with the excess gathered when removing noises smaller than avg_duration
-        sorted_timings = [] #[(cpu, (idx, (start, dur)))]
-        for cpu in range(cpu_amount):
-            sorted_timings.extend([(cpu, x) for x in abs_timings[cpu]])
-
-        sorted_timings = sorted(sorted_timings, key=lambda x: x[1][1][1])
-        i = 0
-        # Remove/ reduce smallest noises of this task with the acummulated excess duration
-        while rem_dur>0 and i<len(sorted_timings):
-            cpu = sorted_timings[i][0]
-            idx = sorted_timings[i][1][0]
-            # Consume excess duration
-            if worst_trace[0][cpu][task][idx][1] - rem_dur >= 0:
-                worst_trace[0][cpu][task][idx] = (worst_trace[0][cpu][task][idx][0], worst_trace[0][cpu][task][idx][1] - rem_dur)
-                rem_dur = 0
-            else: #Reduce excess duration
-                worst_trace[0][cpu][task][idx] = (worst_trace[0][cpu][task][idx][0], 0)
-                rem_dur = rem_dur - worst_trace[0][cpu][task][idx][1]
-            i+=1
+        ## Remove smallest noises with the excess gathered when removing noises smaller than avg_duration
+        #sorted_timings = [] #[(cpu, (idx, (start, dur)))]
+        #for cpu in range(cpu_amount):
+        #    sorted_timings.extend([(cpu, x) for x in abs_timings[cpu]])
+#
+        #sorted_timings = sorted(sorted_timings, key=lambda x: x[1][1][1])
+        #i = 0
+        ## Remove/ reduce smallest noises of this task with the acummulated excess duration
+        #while rem_dur>0 and i<len(sorted_timings):
+        #    cpu = sorted_timings[i][0]
+        #    idx = sorted_timings[i][1][0]
+        #    # Consume excess duration
+        #    if worst_trace[0][cpu][task][idx][1] - rem_dur >= 0:
+        #        worst_trace[0][cpu][task][idx] = (worst_trace[0][cpu][task][idx][0], worst_trace[0][cpu][task][idx][1] - rem_dur)
+        #        rem_dur = 0
+        #    else: #Reduce excess duration
+        #        worst_trace[0][cpu][task][idx] = (worst_trace[0][cpu][task][idx][0], 0)
+        #        rem_dur = rem_dur - worst_trace[0][cpu][task][idx][1]
+        #    i+=1
         # Filter out noise with duration of 0
-        for cpu in range(cpu_amount):
+        for cpu in cpus:
             if task in worst_trace[0][cpu]:
                 worst_trace[0][cpu][task] = [x for x in worst_trace[0][cpu][task] if x[1] != 0]
 
