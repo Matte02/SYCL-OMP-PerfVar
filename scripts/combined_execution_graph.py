@@ -1,15 +1,24 @@
 import os
 import re
 import sys
+import argparse
 import matplotlib.pyplot as plt
 
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Generate combined execution time graphs from benchmark outputs.")
+    parser.add_argument("input_folder", type=str, help="Path to the folder containing benchmark outputs.")
+    parser.add_argument("-o","--output_folder", type=str, help="Path to the folder where the output graph will be saved.")
+    parser.add_argument("-hl", "--horizontal-line", type=float, help="Optional horizontal line at given y-value")
+
+    return parser.parse_args()
 def main():
-    if len(sys.argv) < 2 or not os.path.exists(sys.argv[1]):
+    parser = parse_arguments()
+    if not os.path.exists(parser.input_folder):
         print('First argument must be a valid path to the folder containing benchmark outputs.')
-        return
-    
-    input_folder = sys.argv[1]
-    output_folder = sys.argv[2] if len(sys.argv) > 2 else input_folder  # Use input folder as default for output
+        return    
+    input_folder = parser.input_folder
+    output_folder = parser.output_folder if parser.output_folder else input_folder  # Use input folder as default for output
 
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
@@ -73,6 +82,9 @@ def main():
     ax.grid(True, which="major", axis="y", linewidth=0.5, linestyle='-')
     fig.autofmt_xdate()   
     fig.tight_layout(pad=2)
+
+    if parser.horizontal_line:
+        ax.axhline(y=parser.horizontal_line, color='r', linestyle='--', label=f"Horizontal line at {parser.horizontal_line}")
 
     for i, (tick, orig_label) in enumerate(zip(ax.xaxis.get_major_ticks(), keys)):
         
