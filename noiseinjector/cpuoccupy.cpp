@@ -30,21 +30,23 @@ bool should_exit = false;
 int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::string core_id) {
     //Set seed
     int seed = rand();
+    auto ok = nice(-19);
     //Remove timer slack. Not tested if it actually helps.
-    int err = prctl(PR_SET_TIMERSLACK, 1L);
-    if (err == -1) {
-        perror("set_timeslack");
-        return EXIT_FAILURE;
-    }
+    //int err = prctl(PR_SET_TIMERSLACK, 1L);
+    //if (err == -1) {
+    //    perror("set_timeslack");
+    //    return EXIT_FAILURE;
+    //}
 
     //Set to realtime task. May not have to change nice value
-    //auto ok = nice(-1);
+    #ifdef RT
     struct sched_param sp = { .sched_priority = 50 };
     int ret = sched_setscheduler(0, SCHED_FIFO, &sp);
     if (ret == -1) {
         perror("sched_setscheduler");
         return EXIT_FAILURE;
     }
+    #endif
 
     #ifdef USE_TIMER
     timer_t timerid;

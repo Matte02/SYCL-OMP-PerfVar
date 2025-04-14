@@ -7,6 +7,11 @@ LDFLAGS = -lpthread -lrt
 COMMON_DIR = ../common
 COMMON_LIB = $(COMMON_DIR)/libcommon.a
 
+# Check if REAL_TIME should be defined
+ifneq ($(filter 1 yes true,$(REAL_TIME)),)
+    CXXFLAGS += -DRT
+endif
+
 # Source and executable
 SRC = cpuoccupy.cpp
 EXE = cpuoccupy

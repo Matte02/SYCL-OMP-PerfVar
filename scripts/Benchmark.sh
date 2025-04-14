@@ -201,7 +201,7 @@ echo $proc_bind
 make -C ../common clean
 make -C ../common USE_BUSY_WAIT=0
 make -C ../noiseinjector clean
-make -C ../noiseinjector
+make -C ../noiseinjector REAL_TIME=1
 
 # Define a cleanup function
 cleanup() {
@@ -216,6 +216,12 @@ cleanup() {
 
 # Trap SIGINT (Ctrl + C) signal
 trap cleanup SIGINT
+
+# Enable tracing if specified
+if [ $TRACE -eq 1 ]; then
+    echo 1 > "$OSNOISEPATH/tracing_on"
+fi
+
 #Loop thorugh all benches, versions, and iterations
 benchidx=-1
 for bench in ${benches[@]}; do
@@ -253,7 +259,6 @@ for bench in ${benches[@]}; do
             if [ $TRACE -eq 1 ]; then
                 touch "$logpath/$curbench-$TRACECOUNT-$SYSTEM.trace"
                 echo > "$OSNOISEPATH/trace"
-                echo 1 > "$OSNOISEPATH/tracing_on"
                 sleep 1  # Allow tracer warmup
             fi
 
@@ -289,10 +294,6 @@ for bench in ${benches[@]}; do
             if [ $TRACE -eq 1 ]; then
                 # Sleep to allow for cooldown period where noises stretching past workload end are captured
                 sleep 1
-                # Turn off tracing
-                echo 0 > "$OSNOISEPATH/tracing_on"
-                # Sleep to guarante tracing being turned of before starting next benchmark iteration
-                sleep 1
                 # Save trace
                 cat "$OSNOISEPATH/trace" > "$logpath/$curbench-$TRACECOUNT-$SYSTEM.trace"
             fi
@@ -315,6 +316,15 @@ for bench in ${benches[@]}; do
         echo "End: $curbench"
     done
 done
+
+# Disable tracing if specified
+if [ $TRACE -eq 1 ]; then
+    # Turn off tracing
+    echo 0 > "$OSNOISEPATH/tracing_on"
+    # Sleep to allow tracing being turned off
+    sleep 1
+fi
+
 mkdir -p "$graphfolder/performance"
 echo "Running: $CURPATH/bench_graphs.py" "$logfolderpath" "$graphfolder/performance"
 python3 "$CURPATH/bench_graphs.py" "$logfolderpath" "$graphfolder/performance"
