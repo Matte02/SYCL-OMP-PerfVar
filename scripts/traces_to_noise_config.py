@@ -2,6 +2,9 @@ import os
 import sys
 import re
 import argparse
+import matplotlib.pyplot as plt
+from matplotlib.pyplot import cm
+import numpy as np
 from multiprocessing import Pool
 import json
 
@@ -10,7 +13,7 @@ DEFAULT_WORKLOAD_NAME = "main"
 DEFAULT_OUTPUT_FILENAME = "noise_config.json"
 DEFAULT_MERGE_THRESHOLD = 0
 DEFAULT_COMBINE_SMT = False
-
+DEBUG = False
 
 def parse_arguments():
     """
@@ -89,9 +92,14 @@ def main():
     worst_trace = clean_worst_trace(worst_trace, average_dict)
     print(f"Cleaned worst case")
 
-    # Separate the workload execution from the noise traces
-    noise_dict, _ = seperate_traces(worst_trace[0], args.workload_name, worst_trace[1])
-    print(f"Seperated workload from trace")
+    # Convert worst_trace dict to noise dict
+    noise_dict = cpu_to_noise_dict(worst_trace[0],  worst_trace[1])
+    print(f"Converted to Noise dict")
+
+    if DEBUG == True:
+        json_string = json.dumps(noise_dict, indent=4) 
+        with open("Temp_Task_dict.json", "w") as f:
+            f.write(json_string)
 
     # Merge consecutive noise events into one continuous event using the provided merge threshold
     combine_consecutive_noises(noise_dict, merge_threshold=args.merge_threshold)
@@ -147,68 +155,33 @@ def combine_consecutive_noises(noise_dict, merge_threshold=0):
     return noise_dict
 
 
-# Separates workload execution traces from noise traces.
-def seperate_traces(cpu_dict, workload_task_name, workload_end):
+# Converts a cpu dict "dict(dict(list(tuple)))" to a noise dict dict(list(tuple)).
+def cpu_to_noise_dict(cpu_dict, workload_end):
     """
-    Separates workload execution traces from noise traces.
+    Converts a cpu dict "dict(dict(list(tuple)))" to a noise dict "dict(list(tuple))".
 
     Args:
         cpu_dict (dict): Dictionary of CPU traces with tasks and timings.
-        workload_task_name (str): The name of the task representing the workload.
+        workload_end (int): Time when workload is finished.
 
     Returns:
-        tuple: A tuple containing:
-            - noise_dict (dict): A dictionary of noise traces for each CPU.
-            - workload_exec (list): A list of workload execution timings.
+        noise_dict (dict): A dictionary of noise traces for each CPU.
     """
     noise_dict = dict()
     workload_exec = []
 
-    swapper_re = re.compile(r"swapper")
-
     for cpu, tasks in cpu_dict.items():
         noise = []
-        workload_cpu = []
-        swapper_cpu = []
         for task, timing_list in tasks.items():
-            match = swapper_re.search(task)
-            if match != None: # Collect instances of the swapper task
-                swapper_cpu.extend(timing_list)
-                continue
-            if task == workload_task_name:
-                workload_exec.extend(timing_list) # Collect workload execution timings
-            else:
                 noise.extend(timing_list) # Collect noise timings
-
-        # Filter swapper tasks related to the execution of the workload
-        # This removes the context switch overhead stemming from workload
-        assert len(swapper_cpu) >= len(workload_cpu)
-        swapper_cpu = sorted(swapper_cpu, key=lambda tup: tup[0])
-        # For each work instance remove the previous occurence of the swapper task 
-        # as it should have been caused by the workload context swich
-        for work_timing in workload_cpu: 
-            prev_swap = 0
-            for swap_timing in swapper_cpu:
-                # Check if the next instance of swapper happened later than the
-                # start of the workload instance
-                if work_timing[0] - swap_timing[0] < 0:
-                    # Swapper instance related to the workload instance has been found
-                    break
-                prev_swap = swap_timing
-            swapper_cpu.remove(prev_swap)
-        
-        # Add unrelated swapper task instances to inherent noise list
-        noise.extend(swapper_cpu)
-
 
         # Sort noise timings for this CPU
         noise_dict[cpu] = sorted(noise, key=lambda tup: tup[0])
         # Append end noise when workload finished. Used to sync looping during noise injection
         noise_dict[cpu].append((workload_end, 0))
-        workload_exec.extend(workload_cpu)
 
     workload_exec.sort(key=lambda tup: tup[0])
-    return noise_dict, workload_exec
+    return noise_dict
 
 def clean_worst_trace(worst_trace, average_dict):
     """
@@ -218,11 +191,6 @@ def clean_worst_trace(worst_trace, average_dict):
         worst_trace (dict, duration): The trace data for the worst trace (with CPU task timings).
         average_dict (dict): The average trace data to filter out from the worst trace.
     """
-
-    inv_wt = {}
-    for cpu, tasks in worst_trace[0].items():
-        for task in tasks:
-            inv_wt.setdefault(task, []).append(tasks[task])
 
     #cpu_amount = len(worst_trace[0])
     cpus = sorted(list(worst_trace[0].keys()))
@@ -314,6 +282,25 @@ def clean_worst_trace(worst_trace, average_dict):
         for cpu in cpus:
             if task in worst_trace[0][cpu]:
                 worst_trace[0][cpu][task] = [x for x in worst_trace[0][cpu][task] if x[1] != 0]
+    if DEBUG == True:
+        task_duration_dict = dict()
+        for cpu, task_dict in worst_trace[0].items():
+            for task, timings in task_dict.items():
+                for timing in timings:
+                    task_duration_dict[task][cpu] = task_duration_dict.setdefault(task, dict()).setdefault(cpu, 0) + timing[1]
+
+        json_string = json.dumps(task_duration_dict, indent=4) 
+        with open("temp_task_duration_dict.json", "w") as f:
+            f.write(json_string)
+
+        fig, ax = plt.subplots()    
+        for cpu, task_dict in worst_trace[0].items():
+            color = iter(cm.rainbow(np.linspace(0, 1, len(task_dict.keys()))))
+            for task, timings in task_dict.items():
+                c = next(color)
+                for timing in timings:
+                    ax.barh(cpu, width=timing[1], left=timing[0], color=c)
+        plt.show()
 
     return worst_trace        
 
@@ -539,7 +526,36 @@ def get_worst_case_dict(raw_trace_files, trace_path, workload_name, combine_thre
         
     worst_case_file, _ = max(duration_list, key=lambda x: x[1])
     print(worst_case_file)
-    return (get_cpu_dict(worst_case_file, trace_path, workload_name, combine_threads))
+
+
+    worst_trace = get_cpu_dict(worst_case_file, trace_path, workload_name, combine_threads)
+
+    if DEBUG == True:
+        fig, ax = plt.subplots()
+        for cpu, task_dict in worst_trace[0].items():
+            color = iter(cm.rainbow(np.linspace(0, 1, len(task_dict.keys()))))
+            for task, timings in task_dict.items():
+                c = next(color)
+                for timing in timings:
+                    ax.barh(cpu, width=timing[1], left=timing[0], color=c)
+        plt.show()
+
+    for cpu in worst_trace[0].keys():
+        if worst_trace[0][cpu].pop(workload_name, None) != None:
+            print("Workload removed")
+            #del worst_trace[0][cpu][workload_name]
+
+    if DEBUG == True:
+        fig, ax = plt.subplots()
+        for cpu, task_dict in worst_trace[0].items():
+            color = iter(cm.rainbow(np.linspace(0, 1, len(task_dict.keys()))))
+            for task, timings in task_dict.items():
+                c = next(color)
+                for timing in timings:
+                    ax.barh(cpu, width=timing[1], left=timing[0], color=c)
+        plt.show()
+
+    return worst_trace
 
 
 if __name__ == "__main__":
