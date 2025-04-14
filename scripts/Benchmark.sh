@@ -201,7 +201,7 @@ echo $proc_bind
 make -C ../common clean
 make -C ../common USE_BUSY_WAIT=0
 make -C ../noiseinjector clean
-make -C ../noiseinjector REAL_TIME=1
+make -C ../noiseinjector REAL_TIME=0
 
 # Define a cleanup function
 cleanup() {
@@ -323,6 +323,7 @@ if [ $TRACE -eq 1 ]; then
     echo 0 > "$OSNOISEPATH/tracing_on"
     # Sleep to allow tracing being turned off
     sleep 1
+    echo > "$OSNOISEPATH/trace"
 fi
 
 mkdir -p "$graphfolder/performance"
