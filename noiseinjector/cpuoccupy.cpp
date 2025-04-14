@@ -18,6 +18,7 @@ using json = nlohmann::json;
 struct Noise {
     signed long long start_time;
     signed long long duration;
+    signed int priority;
 };
 
 #ifdef USE_TIMER
@@ -30,7 +31,7 @@ bool should_exit = false;
 int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::string core_id) {
     //Set seed
     int seed = rand();
-    auto ok = nice(-19);
+    //auto ok = nice(-19);
     //Remove timer slack. Not tested if it actually helps.
     //int err = prctl(PR_SET_TIMERSLACK, 1L);
     //if (err == -1) {
@@ -86,6 +87,8 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::st
         auto max_oversleep = 0;
         auto total_oversleep = 0;
         auto sleeps = 0;
+        auto current_priority = 0;
+        struct sched_param sp = { .sched_priority = 0 };
         struct timespec start_t, rem_t;
         // Record the program's absolute start time
         auto program_start_time = std::chrono::high_resolution_clock::now();
@@ -93,7 +96,29 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::st
         for (const auto& noise : noises) { 
             if(should_exit){
                 break;
-            }       
+            }
+
+            // Set priority and scheduling policy
+            if (current_priority != noise.priority){
+                if (noise.priority < 0){
+                    sp.sched_priority = -noise.priority;
+                    int ret = sched_setscheduler(0, SCHED_FIFO, &sp);
+                    if (ret == -1) {
+                        perror("sched_setscheduler");
+                        return EXIT_FAILURE;
+                    } 
+                }
+                else {
+                    sp.sched_priority = noise.priority;
+                    int ret = sched_setscheduler(0, SCHED_OTHER, &sp);
+                    if (ret == -1) {
+                        perror("sched_setscheduler");
+                        return EXIT_FAILURE;
+                    } 
+                }
+                current_priority = noise.priority;
+            }
+     
             // Calculate relative wait time for this noise
             auto current_time = std::chrono::high_resolution_clock::now();
             auto wait_time = std::chrono::duration<signed long long, std::nano>(noise.start_time) -
@@ -190,9 +215,9 @@ int parseJSON(std::vector<Noise>& noise_schedule, const std::string& json_file, 
     file.close();
 
     if (config.contains(core_id)) {
-        Noise previous = {-1,-1};
+        Noise previous = {-1,-1, 99};
         for (const auto& entry : config[core_id]) {
-            Noise noise = {entry[0].get<signed long long>(), entry[1].get<signed long long>()};
+            Noise noise = {entry[0].get<signed long long>(), entry[1].get<signed long long>(), entry[2].get<signed int>()};
             if (previous.start_time < noise.start_time) {
                 noise_schedule.push_back(noise);
                 

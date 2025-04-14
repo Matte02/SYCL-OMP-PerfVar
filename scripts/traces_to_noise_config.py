@@ -126,30 +126,32 @@ def combine_consecutive_noises(noise_dict, merge_threshold=0):
         combined_noises = []
         next_start = -1
         next_duration = -1
+        max_prio = 99
 
-        for noise in noises:
-            start = noise[0]
-            duration = noise[1]
-
+        for (start, duration, priority) in noises:
             # If no previous noise to combine, start a new combined event
             if next_start == -1:
                 next_start = start
                 next_duration = duration
+                max_prio = priority
             else:
                 # If the current noise is close to the previous one, combine them
                 if next_start + next_duration + merge_threshold >= start:
                     next_duration += duration + max(start - (next_start + next_duration), 0)
+                    max_prio = priority if priority<max_prio else max_prio
                 else:
                     # No overlap, add the previous noise event and reset
                     # Only include if above merge threshold in duration
                     if next_duration > merge_threshold:
-                        combined_noises.append((next_start, next_duration))
+                        combined_noises.append((next_start, next_duration, max_prio))
 
                     next_start = start
                     next_duration = duration
+                    max_prio = priority
+
 
         # Add the last combined noise event
-        combined_noises.append((next_start, next_duration))
+        combined_noises.append((next_start, next_duration, max_prio))
         noise_dict[cpu] = combined_noises
 
     return noise_dict
@@ -178,7 +180,7 @@ def cpu_to_noise_dict(cpu_dict, workload_end):
         # Sort noise timings for this CPU
         noise_dict[cpu] = sorted(noise, key=lambda tup: tup[0])
         # Append end noise when workload finished. Used to sync looping during noise injection
-        noise_dict[cpu].append((workload_end, 0))
+        noise_dict[cpu].append((workload_end, 0, 0))
 
     workload_exec.sort(key=lambda tup: tup[0])
     return noise_dict
@@ -215,7 +217,7 @@ def clean_worst_trace(worst_trace, average_dict):
                 abs_timings[cpu] = sorted(enumerate(worst_trace[0][cpu][task]), key=lambda x: abs(x[1][1]-avg_duration))
 
         rem_dur = 0
-        # Remove (avg freq * worst case trace timeframe) isntances from trace
+        # Remove (avg freq * worst case trace timeframe) instances from trace
         for x in range(occurences):
             global_closest_idx = -1
             global_closest_cpu = -1
@@ -227,15 +229,16 @@ def clean_worst_trace(worst_trace, average_dict):
                 closest_idx = -1
                 closest_abs = -1
                 closest_local_idx = -1
-
-                for (local_idx, (idx, (start, dur))) in enumerate(abs_timings[cpu]):
+                # Iterate over abs_timing until absolute difference increases, signaling closest entry has been reached
+                for (local_idx, (idx, (_, dur, _))) in enumerate(abs_timings[cpu]):
                     if closest_idx == -1 or abs(dur - avg_duration) < closest_abs:
                         closest_abs = abs(dur - avg_duration)
                         closest_idx = idx
                         closest_local_idx = local_idx
                     else:
                         break
-
+                
+                # If found noise is closer then set it as global closest noise
                 if closest_idx > -1 and (global_closest_cpu == -1 or (
                     global_closest_abs > closest_abs
                     )):
@@ -246,18 +249,18 @@ def clean_worst_trace(worst_trace, average_dict):
             
             # Adjust or remove the closest matching entry
             if global_closest_cpu != -1:
-                closest_timing, closest_duration = worst_trace[0][global_closest_cpu][task][global_closest_idx]
-                if closest_duration - avg_duration < 0:
-                    worst_trace[0][global_closest_cpu][task][global_closest_idx] = (closest_timing, 0)
+                start, duration, priority = worst_trace[0][global_closest_cpu][task][global_closest_idx]
+                if duration - avg_duration < 0:
+                    worst_trace[0][global_closest_cpu][task][global_closest_idx] = (start, 0, priority)
                     abs_timings[global_closest_cpu] = (
                         abs_timings[global_closest_cpu][:global_closest_local_idx] + 
                         abs_timings[global_closest_cpu][global_closest_local_idx + 1:]
                     )
                     # Increase amount of excess duration accumualted
-                    rem_dur += avg_duration - closest_duration 
+                    rem_dur += avg_duration - duration
                 else:
-                    worst_trace[0][global_closest_cpu][task][global_closest_idx] = (closest_timing, closest_duration - avg_duration)
-                    abs_timings[global_closest_cpu][global_closest_local_idx] = (abs_timings[global_closest_cpu][global_closest_local_idx][0], (abs_timings[global_closest_cpu][global_closest_local_idx][1][0], global_closest_abs))
+                    worst_trace[0][global_closest_cpu][task][global_closest_idx] = (start, duration - avg_duration, priority)
+                    abs_timings[global_closest_cpu][global_closest_local_idx] = (abs_timings[global_closest_cpu][global_closest_local_idx][0], (start, duration - avg_duration, priority))
 
         ## Remove smallest noises with the excess gathered when removing noises smaller than avg_duration
         #sorted_timings = [] #[(cpu, (idx, (start, dur)))]
@@ -278,10 +281,12 @@ def clean_worst_trace(worst_trace, average_dict):
         #        worst_trace[0][cpu][task][idx] = (worst_trace[0][cpu][task][idx][0], 0)
         #        rem_dur = rem_dur - worst_trace[0][cpu][task][idx][1]
         #    i+=1
+
         # Filter out noise with duration of 0
         for cpu in cpus:
             if task in worst_trace[0][cpu]:
                 worst_trace[0][cpu][task] = [x for x in worst_trace[0][cpu][task] if x[1] != 0]
+
     if DEBUG == True:
         task_duration_dict = dict()
         for cpu, task_dict in worst_trace[0].items():
@@ -398,8 +403,8 @@ def compute_average_trace(raw_trace_files, trace_path, workload_name, combine_th
 
     # Calculate the average frequency and duration for each task on each CPU
     for cpu, tasks in average_dict.items():
-        for task, avg_tup in tasks.items():
-            average_dict[cpu][task] = (float(average_dict[cpu][task][0]/len(raw_trace_files)), int(average_dict[cpu][task][1]//len(raw_trace_files)))
+        for task, (frequency, duration) in tasks.items():
+            average_dict[cpu][task] = (float(frequency/len(raw_trace_files)), int(duration//len(raw_trace_files)))
     return average_dict
 
 def get_cpu_dict(file, trace_path, workload_name, combine_threads=False):
@@ -422,7 +427,7 @@ def get_cpu_dict(file, trace_path, workload_name, combine_threads=False):
     # Define Regex for matching traces
     trace_regex = re.compile(
         r"\[(\d{3})\]"                      # Capture CPU ID (three digits inside square brackets)
-        r".*?noise:\s*"                     # Lazily match everything up to 'noise:'
+        r".*?:\s(.*noise):\s*"                     # Lazily match everything up to 'noise:'
         r"([^:]*[\/\w\-:]*|)"               # Capture the task name
         r"\s+start\s+"                      # Match 'start' keyword with spaces
         r"(\d+\.\d+)"                       # Capture the start time (floating-point number)
@@ -449,18 +454,24 @@ def get_cpu_dict(file, trace_path, workload_name, combine_threads=False):
             for line in lines:
                 if (match := trace_regex.search(line)):
                     cpu_id = int(match[1])                      # CPU ID
-                    task = match[2].rsplit(":",1)[0] or "nmi"   # Task name
-                    start = int(match[3].replace(".", ""))          # Start Time (ns)
-                    duration = int(match[4])                    # Duration (ns)
+                    #TODO: Alter priority selection to be process name dependent instead. 
+                    #      Example: Check against JSON file and set priority from matching process name 
+                    if match[2] == "thread_noise":              # Set task priority
+                        priority = 0
+                    else:
+                        priority = -1
+                    task = match[3].rsplit(":",1)[0] or "nmi"   # Task name
+                    start = int(match[4].replace(".", ""))          # Start Time (ns)
+                    duration = int(match[5])                    # Duration (ns)
                     if (task == workload_name and (workload_start_time == -1 or workload_start_time > start) ):
                         workload_start_time = start
                     #Store to cpu_dict and combine threads if this is enabled to remove SMT threads
                     if combine_threads:
-                        cpu_dict.setdefault(cpu_id-(cpu_id%2), {}).setdefault(task, []).append((start, duration))
+                        cpu_dict.setdefault(cpu_id-(cpu_id%2), {}).setdefault(task, []).append((start, duration, priority))
                     else:
-                        cpu_dict.setdefault(cpu_id, {}).setdefault(task, []).append((start, duration))
+                        cpu_dict.setdefault(cpu_id, {}).setdefault(task, []).append((start, duration, priority))
 
-        m_cpu_dict: dict[int, dict[str, list[(int, int)]]]#= dict({'NULL': dict({'NULL': []})})
+        m_cpu_dict: dict[int, dict[str, list[(int, int, int)]]]#= dict({'NULL': dict({'NULL': list(tuple(start,dur,prio))})})
         m_cpu_dict = dict()
 
         #Sort all tasks based on start time and remove unneccesary noise
@@ -472,12 +483,13 @@ def get_cpu_dict(file, trace_path, workload_name, combine_threads=False):
                     for timing in timings:
                         start = timing[0]
                         duration = timing[1]
+                        priority = timing[2]
                         # Noise started after workload and before end
                         if start >= workload_start_time and start<=workload_start_time+total_duration:
-                            adjusted_timings.append((start-workload_start_time, duration))
+                            adjusted_timings.append((start-workload_start_time, duration, priority))
                         # Noise started before workload but stretches past workload start
                         elif (start+duration) > workload_start_time and start<=workload_start_time+total_duration:
-                            adjusted_timings.append((0, (start+duration)-workload_start_time))
+                            adjusted_timings.append((0, (start+duration)-workload_start_time, priority))
                 else:
                     print("No workload found in trace")
                     exit(1)
@@ -530,30 +542,30 @@ def get_worst_case_dict(raw_trace_files, trace_path, workload_name, combine_thre
 
     worst_trace = get_cpu_dict(worst_case_file, trace_path, workload_name, combine_threads)
 
-    if DEBUG == True:
-        fig, ax = plt.subplots()
-        for cpu, task_dict in worst_trace[0].items():
-            color = iter(cm.rainbow(np.linspace(0, 1, len(task_dict.keys()))))
-            for task, timings in task_dict.items():
-                c = next(color)
-                for timing in timings:
-                    ax.barh(cpu, width=timing[1], left=timing[0], color=c)
-        plt.show()
+    #if DEBUG == True:
+    #    fig, ax = plt.subplots()
+    #    for cpu, task_dict in worst_trace[0].items():
+    #        color = iter(cm.rainbow(np.linspace(0, 1, len(task_dict.keys()))))
+    #        for task, timings in task_dict.items():
+    #            c = next(color)
+    #            for timing in timings:
+    #                ax.barh(cpu, width=timing[1], left=timing[0], color=c)
+    #    plt.show()
 
     for cpu in worst_trace[0].keys():
         if worst_trace[0][cpu].pop(workload_name, None) != None:
             print("Workload removed")
             #del worst_trace[0][cpu][workload_name]
 
-    if DEBUG == True:
-        fig, ax = plt.subplots()
-        for cpu, task_dict in worst_trace[0].items():
-            color = iter(cm.rainbow(np.linspace(0, 1, len(task_dict.keys()))))
-            for task, timings in task_dict.items():
-                c = next(color)
-                for timing in timings:
-                    ax.barh(cpu, width=timing[1], left=timing[0], color=c)
-        plt.show()
+    #if DEBUG == True:
+    #    fig, ax = plt.subplots()
+    #    for cpu, task_dict in worst_trace[0].items():
+    #        color = iter(cm.rainbow(np.linspace(0, 1, len(task_dict.keys()))))
+    #        for task, timings in task_dict.items():
+    #            c = next(color)
+    #            for timing in timings:
+    #                ax.barh(cpu, width=timing[1], left=timing[0], color=c)
+    #    plt.show()
 
     return worst_trace
 
