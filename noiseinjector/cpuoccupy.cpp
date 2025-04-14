@@ -166,6 +166,9 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::st
     #ifdef LOOP
     }
     #endif
+    while(!should_exit){
+        pause();
+    }
     // Close semaphores
     cleanup_semaphores();
     return EXIT_SUCCESS;
