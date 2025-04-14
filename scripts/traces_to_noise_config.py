@@ -226,7 +226,6 @@ def clean_worst_trace(worst_trace, average_dict):
 
     #cpu_amount = len(worst_trace[0])
     cpus = sorted(list(worst_trace[0].keys()))
-    print(cpus)
     cpu_amount = len(cpus)
 
     # Calculate global average frequency and duration
@@ -243,10 +242,8 @@ def clean_worst_trace(worst_trace, average_dict):
     for task, (occurences, avg_duration) in global_avg.items():
         # Create list of average noise removal order
         abs_timings = [() for x in range(cpus[len(cpus)-1]+1)]
-        print(abs_timings)
         for cpu in cpus:
             if task in worst_trace[0][cpu]:
-                print(cpu)
                 abs_timings[cpu] = sorted(enumerate(worst_trace[0][cpu][task]), key=lambda x: abs(x[1][1]-avg_duration))
 
         rem_dur = 0
