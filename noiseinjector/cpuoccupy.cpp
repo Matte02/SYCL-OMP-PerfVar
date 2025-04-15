@@ -28,7 +28,7 @@ static void handler(int sig, siginfo_t *si, void *uc) {
 #endif
 bool should_exit = false;
 
-int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::string core_id) {
+int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::string core_id, int priority) {
     //Set seed
     int seed = rand();
     //auto ok = nice(-19);
@@ -38,16 +38,31 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::st
     //    perror("set_timeslack");
     //    return EXIT_FAILURE;
     //}
-
     //Set to realtime task. May not have to change nice value
-    #ifdef RT
-    struct sched_param sp = { .sched_priority = 50 };
-    int ret = sched_setscheduler(0, SCHED_FIFO, &sp);
-    if (ret == -1) {
-        perror("sched_setscheduler");
-        return EXIT_FAILURE;
+
+    struct sched_param sp = { .sched_priority = 1 };
+    std::cout << "Priority=" << priority <<std::endl;
+    // Set priority and scheduling policy
+    if (priority > 0){
+        sp.sched_priority = 1;
+        int ret = sched_setscheduler(0, SCHED_FIFO, &sp);
+        if (ret == -1) {
+            perror("sched_setscheduler");
+            return EXIT_FAILURE;
+        } 
     }
-    #endif
+    else if (priority == 0) {
+        sp.sched_priority = priority;
+        int ret = sched_setscheduler(0, SCHED_OTHER, &sp);
+        if (ret == -1) {
+            perror("sched_setscheduler");
+            return EXIT_FAILURE;
+        } 
+    }
+    else {
+        perror("Unsupported noise priority");
+        exit(EXIT_FAILURE);
+    }
 
     #ifdef USE_TIMER
     timer_t timerid;
@@ -87,8 +102,6 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::st
         auto max_oversleep = 0;
         auto total_oversleep = 0;
         auto sleeps = 0;
-        auto current_priority = 0;
-        struct sched_param sp = { .sched_priority = 0 };
         struct timespec start_t, rem_t;
         // Record the program's absolute start time
         auto program_start_time = std::chrono::high_resolution_clock::now();
@@ -96,27 +109,6 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::st
         for (const auto& noise : noises) { 
             if(should_exit){
                 break;
-            }
-
-            // Set priority and scheduling policy
-            if (current_priority != noise.priority){
-                if (noise.priority < 0){
-                    sp.sched_priority = -noise.priority;
-                    int ret = sched_setscheduler(0, SCHED_FIFO, &sp);
-                    if (ret == -1) {
-                        perror("sched_setscheduler");
-                        return EXIT_FAILURE;
-                    } 
-                }
-                else {
-                    sp.sched_priority = noise.priority;
-                    int ret = sched_setscheduler(0, SCHED_OTHER, &sp);
-                    if (ret == -1) {
-                        perror("sched_setscheduler");
-                        return EXIT_FAILURE;
-                    } 
-                }
-                current_priority = noise.priority;
             }
      
             // Calculate relative wait time for this noise
@@ -193,9 +185,6 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::st
     #ifdef LOOP
     }
     #endif
-    while(!should_exit){
-        pause();
-    }
     // Close semaphores
     cleanup_semaphores();
     return EXIT_SUCCESS;
@@ -244,8 +233,8 @@ void termHandler( int signum ) {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc < 4) {
-        std::cerr << "Usage: " << argv[0] << " <json_file> <core_id> <number_of_processes>" << std::endl;
+    if (argc < 5) {
+        std::cerr << "Usage: " << argv[0] << " <json_file> <core_id> <number_of_processes> <noise_priority>" << std::endl;
         return EXIT_FAILURE;
     }
     signal(SIGTERM, termHandler);  
@@ -253,6 +242,7 @@ int main(int argc, char* argv[]) {
     std::string json_file = argv[1];
     std::string core_id = argv[2];
     int number_of_processes = std::stoi(argv[3]);
+    int priority = std::stoi(argv[4]);
 
 
     std::vector<Noise> noises_schedule;
@@ -262,5 +252,5 @@ int main(int argc, char* argv[]) {
     }
 
     // Start the CPU occupy function with higher resolution
-    return cpuoccupy(noises_schedule, number_of_processes, core_id);
+    return cpuoccupy(noises_schedule, number_of_processes, core_id, priority);
 }

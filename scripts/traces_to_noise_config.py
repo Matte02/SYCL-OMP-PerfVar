@@ -92,22 +92,30 @@ def main():
     worst_trace = clean_worst_trace(worst_trace, average_dict)
     print(f"Cleaned worst case")
 
-    # Convert worst_trace dict to noise dict
-    noise_dict = cpu_to_noise_dict(worst_trace[0],  worst_trace[1])
-    print(f"Converted to Noise dict")
+    # Convert worst_trace dict to noise dicts
+    noise_dict_hp, noise_dict_lp = cpu_to_noise_dict(worst_trace[0],  worst_trace[1])
+    print(f"Converted to Noise dicts")
 
     if DEBUG == True:
-        json_string = json.dumps(noise_dict, indent=4) 
-        with open("Temp_Task_dict.json", "w") as f:
+        json_string = json.dumps(noise_dict_hp, indent=4) 
+        with open("HP_Task_dict.json", "w") as f:
+            f.write(json_string)
+
+        json_string = json.dumps(noise_dict_lp, indent=4) 
+        with open("LP_Task_dict.json", "w") as f:
             f.write(json_string)
 
     # Merge consecutive noise events into one continuous event using the provided merge threshold
-    combine_consecutive_noises(noise_dict, merge_threshold=args.merge_threshold)
+    combine_consecutive_noises(noise_dict_hp, merge_threshold=args.merge_threshold)
+    combine_consecutive_noises(noise_dict_lp, merge_threshold=args.merge_threshold)
     print(f"Combined overlapping noise")
 
-    # Write the processed noise data to the specified output JSON file
-    json_string = json.dumps(noise_dict, indent=4) 
-    with open(args.output_filename, "w") as f:
+    # Write the processed noise data to the specified output JSON files
+    json_string = json.dumps(noise_dict_hp, indent=4) 
+    with open("HP_"+args.output_filename, "w") as f:
+        f.write(json_string)
+    json_string = json.dumps(noise_dict_lp, indent=4) 
+    with open("LP_"+args.output_filename, "w") as f:
         f.write(json_string)
 
 def combine_consecutive_noises(noise_dict, merge_threshold=0):
@@ -157,33 +165,42 @@ def combine_consecutive_noises(noise_dict, merge_threshold=0):
     return noise_dict
 
 
-# Converts a cpu dict "dict(dict(list(tuple)))" to a noise dict dict(list(tuple)).
+# Converts a cpu dict "dict(dict(list(tuple)))" to noise dicts dict(list(tuple)).
 def cpu_to_noise_dict(cpu_dict, workload_end):
     """
-    Converts a cpu dict "dict(dict(list(tuple)))" to a noise dict "dict(list(tuple))".
+    Converts a cpu dict "dict(dict(list(tuple)))" to noise dict "dict(list(tuple))".
 
     Args:
         cpu_dict (dict): Dictionary of CPU traces with tasks and timings.
         workload_end (int): Time when workload is finished.
 
     Returns:
-        noise_dict (dict): A dictionary of noise traces for each CPU.
+        noise_dict_lp (dict): A dictionary of low prioirity noise traces for each CPU.
+        noise_dict_hp (dict): A dictionary of high prioirity noise traces for each CPU.
     """
-    noise_dict = dict()
-    workload_exec = []
+    noise_dict_lp = dict()
+    noise_dict_hp = dict()
 
     for cpu, tasks in cpu_dict.items():
-        noise = []
+        noise_hp = []
+        noise_lp = []
         for task, timing_list in tasks.items():
-                noise.extend(timing_list) # Collect noise timings
+                # Collect noise timings
+                # Assumes all noise instances of a task is the same priority
+                if len(timing_list)>0:
+                    if timing_list[0][2] == -1:
+                        noise_hp.extend(timing_list)
+                    else: 
+                        noise_lp.extend(timing_list)
 
         # Sort noise timings for this CPU
-        noise_dict[cpu] = sorted(noise, key=lambda tup: tup[0])
+        noise_dict_hp[cpu] = sorted(noise_hp, key=lambda tup: tup[0])
+        noise_dict_lp[cpu] = sorted(noise_lp, key=lambda tup: tup[0])
         # Append end noise when workload finished. Used to sync looping during noise injection
-        noise_dict[cpu].append((workload_end, 0, 0))
+        noise_dict_hp[cpu].append((workload_end, 0, -1))
+        noise_dict_lp[cpu].append((workload_end, 0, 0))
 
-    workload_exec.sort(key=lambda tup: tup[0])
-    return noise_dict
+    return noise_dict_hp, noise_dict_lp
 
 def clean_worst_trace(worst_trace, average_dict):
     """

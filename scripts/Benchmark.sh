@@ -129,19 +129,29 @@ mkdir -p "$graphfolder"
 
 
 if [ "$INJECT_NOISE_VALUE" = "yes" ]; then
-    config_file_name=$(basename -- "$noise_config_file")
     echo "Copy Noise config file at: $noise_config_file to $logfolderpath"
-    cp  "$noise_config_file" "$logfolderpath/"
+    
+    config_file_name=HP_$(basename -- "$noise_config_file")
+    config_path=$(dirname -- "$noise_config_file")
+    cp  "$config_path/$config_file_name" "$logfolderpath/"
+    python3 "$CURPATH/noise_config_graphs.py" "$config_file_name" "$graphfolder/HP_injected_noise"
+
     key_count=$(jq 'length' $logfolderpath/$config_file_name)
+
+    config_file_name=LP_$(basename -- "$noise_config_file")
+    config_path=$(dirname -- "$noise_config_file")
+    cp  "$config_path/$config_file_name" "$logfolderpath/"
+    python3 "$CURPATH/noise_config_graphs.py" "$config_file_name" "$graphfolder/LP_injected_noise"
+
+    key_count=$(($(jq 'length' $logfolderpath/$config_file_name)+$key_count))
+    echo $key_count
     for k in "${!benchparameters[@]}"; do
         benchparameters[$k]="${benchparameters[$k]} $key_count"
     done
-    
+
+    config_file_name=$(basename -- "$noise_config_file")
     #This should ensure that we are able to reach 100% utilization for the realtime processes
     echo 1000000 > /proc/sys/kernel/sched_rt_runtime_us
-    # TODO Allow different noises for different frameworks.
-    python3 "$CURPATH/noise_config_graphs.py" "$noise_config_file" "$graphfolder/injected_noise"
-    echo "Running: $CURPATH/noise_config_graphs.py" "$noise_config_file" "$graphfolder/injected_noise"
 fi
 
 # Source Intel OneAPI environment

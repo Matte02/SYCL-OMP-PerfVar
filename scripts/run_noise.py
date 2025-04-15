@@ -5,8 +5,13 @@ import argparse
 import signal
 import atexit
 import time
+import json
+
 
 NOISE_INJECTOR_FOLDER_PATH = "../noiseinjector"
+
+processes_list = []
+
 
 def build_code(rebuild=False, debug=False):
     # Change the current working directory to the noise injector folder
@@ -24,56 +29,72 @@ def run_cpuoccupy_parallel(json_file, verbose=False, no_benchmark=False, any_cor
     """
     Run cpuoccupy processes in parallel, one for each core defined in the JSON file.
     """
-    # Check if the JSON file exists
-    if not os.path.exists(json_file):
-        print(f"Error: JSON file not found: {json_file}")
-        sys.exit(1)
+    path, filename = os.path.split(json_file)
+    newfilename = "HP_"+filename
+    hp_json_file = os.path.join(path, newfilename)
+    print(hp_json_file)
+    path, filename = os.path.split(json_file)
+    newfilename = "LP_"+filename
+    lp_json_file = os.path.join(path, newfilename)
+    print(lp_json_file)
+    priority_list = [1, 0]
 
-    # Parse the JSON file to get core IDs
-    import json
-    with open(json_file, 'r') as f:
-        config = json.load(f)
+    core_ids_list = []
+    num_processes = 0
+    for (iter, json_file) in enumerate([hp_json_file, lp_json_file]):
+        # Check if the JSON file exists
+        if not os.path.exists(json_file):
+            print(f"Error: JSON file not found: {json_file}")
+            sys.exit(1)
 
-    core_ids = config.keys()
+        # Parse the JSON file to get core IDs
+        with open(json_file, 'r') as f:
+            config = json.load(f)
 
-
-    # Get the number of available CPU cores
-    available_cores = os.cpu_count()
-    if available_cores is None:
-        print("Error: Unable to determine the number of available CPU cores.")
-        sys.exit(1)
-
-    # Check if the number of cores in the JSON exceeds available cores
-    num_cores_in_json = len(core_ids)
+        core_ids = config.keys()
+        core_ids_list.append(core_ids)
+        num_processes += len(core_ids)
     
-    if num_cores_in_json > available_cores:
-        print(f"Error: The JSON file specifies {num_cores_in_json} cores, but only {available_cores} cores are available on this system.")
-        sys.exit(1)
+    num_processes = num_processes if no_benchmark else num_processes + 1
+    #print(f"Num of processes (should be number of cores({num_cores_in_json}) + 1): {num_processes}")
 
-    # Check that all core IDs in the JSON file are within the available cores range
-    for core_id in core_ids:
-        if int(core_id) >= available_cores:
-            print(f"Error: Core ID {core_id} is invalid. This system has only {available_cores} cores.")
+    for (iter, json_file) in enumerate([hp_json_file, lp_json_file]):
+        # Get the number of available CPU cores
+        available_cores = os.cpu_count()
+        if available_cores is None:
+            print("Error: Unable to determine the number of available CPU cores.")
             sys.exit(1)
 
-    num_processes = len(core_ids) if no_benchmark else len(core_ids) + 1
-    print(f"Num of processes (should be number of cores({num_cores_in_json}) + 1): {num_processes}")
-    for core_id in core_ids:
-        # Construct the command for taskset
-        command = f"./{NOISE_INJECTOR_FOLDER_PATH}/cpuoccupy {json_file} {core_id} {num_processes}"
-        if not any_core: 
-            command = f"taskset -c {core_id} " + command
-
-        if verbose:
-            print(f"Starting: {command}")
-
-        # Start the process in parallel
-        try:
-            process = subprocess.Popen(command, shell=True, preexec_fn=os.setsid)
-            processes_list.append((process, core_id))
-        except Exception as e:
-            print(f"Failed to start process on core {core_id}: {e}")
+        core_ids = core_ids_list[iter]
+        # Check if the number of cores in the JSON exceeds available cores
+        num_cores_in_json = len(core_ids)
+        
+        if num_cores_in_json > available_cores:
+            print(f"Error: The JSON file specifies {num_cores_in_json} cores, but only {available_cores} cores are available on this system.")
             sys.exit(1)
+
+        # Check that all core IDs in the JSON file are within the available cores range
+        for core_id in core_ids:
+            if int(core_id) >= available_cores:
+                print(f"Error: Core ID {core_id} is invalid. This system has only {available_cores} cores.")
+                sys.exit(1)
+
+        for core_id in core_ids:
+            # Construct the command for taskset
+            command = f"./{NOISE_INJECTOR_FOLDER_PATH}/cpuoccupy {json_file} {core_id} {num_processes} {priority_list[iter]}"
+            if not any_core: 
+                command = f"taskset -c {core_id} " + command
+
+            if verbose:
+                print(f"Starting: {command}")
+
+            # Start the process in parallel
+            try:
+                process = subprocess.Popen(command, shell=True, preexec_fn=os.setsid)
+                processes_list.append((process, core_id))
+            except Exception as e:
+                print(f"Failed to start process on core {core_id}: {e}")
+                sys.exit(1)
 
     # Wait for all processes to finish
     for process, core_id in processes_list:
@@ -81,7 +102,6 @@ def run_cpuoccupy_parallel(json_file, verbose=False, no_benchmark=False, any_cor
         if verbose:
             print(f"Process on core {core_id} finished.")
 
-processes_list = []
 def cleanup(signum, frame):
     print("CLEANUP")
     for p, core_id in processes_list:
