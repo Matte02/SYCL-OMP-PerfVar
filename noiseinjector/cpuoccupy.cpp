@@ -108,13 +108,17 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::st
                         return EXIT_FAILURE;
                     } 
                 }
-                else {
+                else if (noise.priority == 0){
                     sp.sched_priority = noise.priority;
                     int ret = sched_setscheduler(0, SCHED_OTHER, &sp);
                     if (ret == -1) {
                         perror("sched_setscheduler");
                         return EXIT_FAILURE;
                     } 
+                }
+                else {
+                    perror("Unsupported priority");
+                    return EXIT_FAILURE;
                 }
                 current_priority = noise.priority;
             }
@@ -194,7 +198,7 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::st
     }
     #endif
     while(!should_exit){
-        pause();
+        sleep(10);
     }
     // Close semaphores
     cleanup_semaphores();
