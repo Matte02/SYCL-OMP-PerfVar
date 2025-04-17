@@ -51,7 +51,7 @@ for i in "$@"; do
   case $i in
     -folder_name=*)
         FOLDER_NAME="${i#*=}"
-        logfolderpath="$benchpath/logs/$FOLDER_NAME-$benchtime"
+        logfolderpath="$benchpath/logs/$FOLDER_NAME"
         shift # past argument=value
             ;;
     -i=*)
