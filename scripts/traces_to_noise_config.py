@@ -542,30 +542,30 @@ def get_worst_case_dict(raw_trace_files, trace_path, workload_name, combine_thre
 
     worst_trace = get_cpu_dict(worst_case_file, trace_path, workload_name, combine_threads)
 
-    #if DEBUG == True:
-    #    fig, ax = plt.subplots()
-    #    for cpu, task_dict in worst_trace[0].items():
-    #        color = iter(cm.rainbow(np.linspace(0, 1, len(task_dict.keys()))))
-    #        for task, timings in task_dict.items():
-    #            c = next(color)
-    #            for timing in timings:
-    #                ax.barh(cpu, width=timing[1], left=timing[0], color=c)
-    #    plt.show()
+    if DEBUG == True:
+        fig, ax = plt.subplots()
+        for cpu, task_dict in worst_trace[0].items():
+            color = iter(cm.rainbow(np.linspace(0, 1, len(task_dict.keys()))))
+            for task, timings in task_dict.items():
+                c = next(color)
+                for timing in timings:
+                    ax.barh(cpu, width=timing[1], left=timing[0], color=c)
+        plt.show()
 
     for cpu in worst_trace[0].keys():
         if worst_trace[0][cpu].pop(workload_name, None) != None:
             print("Workload removed")
             #del worst_trace[0][cpu][workload_name]
 
-    #if DEBUG == True:
-    #    fig, ax = plt.subplots()
-    #    for cpu, task_dict in worst_trace[0].items():
-    #        color = iter(cm.rainbow(np.linspace(0, 1, len(task_dict.keys()))))
-    #        for task, timings in task_dict.items():
-    #            c = next(color)
-    #            for timing in timings:
-    #                ax.barh(cpu, width=timing[1], left=timing[0], color=c)
-    #    plt.show()
+    if DEBUG == True:
+        fig, ax = plt.subplots()
+        for cpu, task_dict in worst_trace[0].items():
+            color = iter(cm.rainbow(np.linspace(0, 1, len(task_dict.keys()))))
+            for task, timings in task_dict.items():
+                c = next(color)
+                for timing in timings:
+                    ax.barh(cpu, width=timing[1], left=timing[0], color=c)
+        plt.show()
 
     return worst_trace
 
