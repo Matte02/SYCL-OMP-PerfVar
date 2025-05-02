@@ -31,7 +31,7 @@ bool should_exit = false;
 int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::string core_id) {
     //Set seed
     int seed = rand();
-    //auto ok = nice(-19);
+    auto ok = nice(-19);
     //Remove timer slack. Not tested if it actually helps.
     //int err = prctl(PR_SET_TIMERSLACK, 1L);
     //if (err == -1) {
@@ -114,7 +114,7 @@ int cpuoccupy(const std::vector<Noise>& noises, int number_of_processes, std::st
                     if (ret == -1) {
                         perror("sched_setscheduler");
                         return EXIT_FAILURE;
-                    } 
+                    }
                 }
                 else {
                     perror("Unsupported priority");

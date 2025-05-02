@@ -93,21 +93,24 @@ def main():
         avgexectime = sum(exectimes) / len(exectimes)
         normexectimes = [x / avgexectime for x in exectimes]
 
-        # Plot normalized execution times
-        fig, axs = plt.subplots()
-        axs.set_ylabel('Execution time (normalized)')
-        axs.set_xlabel(bench)
-        axs.boxplot([normexectimes])
-        plt.xticks([])
-        plt.savefig(os.path.join(output_folder, f"{bench}.png"))
+        ## Plot normalized execution times
+        #fig, axs = plt.subplots()
+        #axs.set_ylabel('Execution time (normalized)')
+        #axs.set_xlabel(bench)
+        #axs.boxplot([normexectimes])
+        #plt.xticks([])
+        #plt.savefig(os.path.join(output_folder, f"{bench}.png"))
 
         # Plot execution times in seconds
-        fig, axs = plt.subplots()
-        axs.set_ylabel('Execution time (s)')
-        axs.set_xlabel(bench)
-        axs.boxplot([exectimes])
+        fig = plt.figure(figsize=(2, 3))
+        ax = plt.subplot()
+        ax.set_ylabel('Execution time (s)')
+        ax.set_xlabel(bench)
+        ax.boxplot([exectimes], False, vert=True, whis=0.75, positions=[0], widths=[0.5])
         plt.xticks([])
+        plt.tight_layout() 
         plt.savefig(os.path.join(output_folder, f"{bench}-sec.png"))
+        #plt.show()
 
         # Write statistics to file
         write_statistics_to_file(output_folder, bench, exectimes, normexectimes)

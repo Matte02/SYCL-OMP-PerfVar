@@ -63,11 +63,10 @@ def populate_stats_dict(stats_files, root_path):
 
     return stats_dict
 
+
 def main():
     parser = argparse.ArgumentParser(description="Compare benchmark results.")
     parser.add_argument("root_dirs", nargs="+", help="Root directories containing compared benchmark results.")
-    parser.add_argument("baseline_dirs", nargs="+", help="Root directories containing baseline benchmark results.")
-    parser.add_argument("injected_time", nargs="+", help="Exec time (s) of original injected anomaly.")
     parser.add_argument("--output", help="Path to the output file.", default=None)
     args = parser.parse_args()
 
@@ -76,25 +75,43 @@ def main():
         print("No _stats.txt files found in the provided comparison directories.")
         return
 
-    stats_files_b = find_stats_files(args.baseline_dirs)
-    if not stats_files_c:
-        print("No _stats.txt files found in the provided baseline directories.")
-        return
-
     dict_c = populate_stats_dict(stats_files_c, args.root_dirs)
-    dict_b = populate_stats_dict(stats_files_b, args.baseline_dirs)
 
-    print(dict_c["Roam-omp"]["Execution Times (seconds)"]["Average"])
+    #out_name = "-"
+    #out_std_dev = "Standard deviation"
+    #out_avg = "Average exec"
+#
+#
+#
+    #sorted_list = sorted(dict_c.items(), key = lambda y: tuple(reversed(y[0].split("-"))))
+#
+    #for name, stats in sorted_list:
+    #    out_name = out_name + " & " + name
+    #    out_std_dev = out_std_dev + " & " + str(round(dict_c[name]["Execution Times (seconds)"]["Standard Deviation"], 6))
+    #    out_avg = out_avg + " & " + str(round(dict_c[name]["Execution Times (seconds)"]["Average"], 6))
+    #    
+    #out_name = out_name + r"\\  \hline"
+    #out_std_dev = out_std_dev + r"\\  \hline"
+    #out_avg = out_avg + r"\\  \hline"
+#
+    #out_prefix = r"\begin{tabularx}{1\textwidth} { "
+    #for i in range(len(sorted_list)+1):
+    #    out_prefix = "\n" + out_prefix + r"| >{\centering\arraybackslash}X "
+    #out_prefix =  out_prefix + r"| }" +"\n"+ r'\hline'
+#
+    #print(out_prefix)
+    #print(out_name)
+    #print(out_avg)
+    #print(out_std_dev)
+    #print(r"\end{tabularx}")
 
     out_name_omp = r"\rowcolor{gray!40} OpenMP"
-    out_avg_change_omp = r"Change from baseline (\%)"
-    out_avg_abs_omp = r"Average time"
-    out_diff_omp = r"Difference from injected (\%) "
+    out_std_dev_omp = r"Standard deviation"
+    out_avg_omp = r"Average time"
 
     out_name_sycl = r"\rowcolor{gray!40} SYCL"
-    out_avg_change_sycl = r"Change from baseline (\%)"
-    out_avg_abs_sycl = r"Average time"
-    out_diff_sycl = r"Difference from injected (\%) "
+    out_std_dev_sycl = r"Standard deviation"
+    out_avg_sycl = r"Average time"
 
 
     sorted_list = sorted(dict_c.items(), key = lambda y: tuple(reversed(y[0].split("-"))))
@@ -102,34 +119,21 @@ def main():
     for name, stats in sorted_list:
         if name.split("-")[-1] == "omp":
             out_name_omp = out_name_omp + " & " + name.split("-")[0]
-            
-            out_avg_abs_omp = out_avg_abs_omp + " & " + str(round(dict_c[name]["Execution Times (seconds)"]["Average"], 6))
-            change = float(dict_c[name]["Execution Times (seconds)"]["Average"]) / float(dict_b[name]["Execution Times (seconds)"]["Average"]) - 1 
-            sec_change = float(dict_c[name]["Execution Times (seconds)"]["Average"]) - float(dict_b[name]["Execution Times (seconds)"]["Average"])
-            out_avg_change_omp = out_avg_change_omp + " & " + str(round(sec_change, 4)) + "s " + str(round(change*100, 1)) + r"\%"
-            diff = float(dict_c[name]["Execution Times (seconds)"]["Average"]) / float(args.injected_time[0]) - 1 
-            out_diff_omp = out_diff_omp + " & " + str(round(diff*100, 1)) + r"\%"
+            out_std_dev_omp = out_std_dev_omp + " & " + str(round(dict_c[name]["Execution Times (seconds)"]["Standard Deviation"], 6))
+            out_avg_omp = out_avg_omp + " & " + str(round(dict_c[name]["Execution Times (seconds)"]["Average"], 6))
         else:
             out_name_sycl = out_name_sycl + " & " + name.split("-")[0]
-            
-            out_avg_abs_sycl = out_avg_abs_sycl + " & " + str(round(dict_c[name]["Execution Times (seconds)"]["Average"], 6))
-            change = float(dict_c[name]["Execution Times (seconds)"]["Average"]) / float(dict_b[name]["Execution Times (seconds)"]["Average"]) - 1 
-            sec_change = float(dict_c[name]["Execution Times (seconds)"]["Average"]) - float(dict_b[name]["Execution Times (seconds)"]["Average"])
-            out_avg_change_sycl = out_avg_change_sycl + " & " + str(round(sec_change, 4)) + "s " +  str(round(change*100, 1)) + r"\%"
-                    
-            diff = float(dict_c[name]["Execution Times (seconds)"]["Average"]) / float(args.injected_time[0]) - 1 
-            out_diff_sycl = out_diff_sycl + " & " + str(round(diff*100, 1)) + r"\%"
+            out_std_dev_sycl = out_std_dev_sycl + " & " + str(round(dict_c[name]["Execution Times (seconds)"]["Standard Deviation"], 6))
+            out_avg_sycl = out_avg_sycl + " & " + str(round(dict_c[name]["Execution Times (seconds)"]["Average"], 6))
 
 
     out_name_omp = out_name_omp + r"\\  \hline"
-    out_avg_abs_omp = out_avg_abs_omp + r"\\  \hline"
-    out_avg_change_omp = out_avg_change_omp + r"\\  \hline"
-    out_diff_omp = out_diff_omp + r"\\  \hline"
+    out_avg_omp = out_avg_omp + r"\\  \hline"
+    out_std_dev_omp = out_std_dev_omp + r"\\  \hline"
 
     out_name_sycl = out_name_sycl + r"\\  \hline"
-    out_avg_abs_sycl = out_avg_abs_sycl + r"\\  \hline"
-    out_avg_change_sycl = out_avg_change_sycl + r"\\  \hline"
-    out_diff_sycl = out_diff_sycl + r"\\  \hline"
+    out_avg_sycl = out_avg_sycl + r"\\  \hline"
+    out_std_dev_sycl = out_std_dev_sycl + r"\\  \hline"
 
 
     out_prefix = r"\begin{tabularx}{1\textwidth} { "
@@ -139,14 +143,14 @@ def main():
 
     print(out_prefix)
     print(out_name_omp)
-    print(out_avg_abs_omp)
-    print(out_avg_change_omp)
-    print(out_diff_omp)
+    print(out_avg_omp)
+    print(out_std_dev_omp)
     print(out_name_sycl)
-    print(out_avg_abs_sycl)
-    print(out_avg_change_sycl)
-    print(out_diff_sycl)
+    print(out_avg_sycl)
+    print(out_std_dev_sycl)
     print(r"\end{tabularx}")
+    
+
     #comparison = compare_stats(all_stats, all_names, baseline_index)
     #print_comparison_html(comparison, all_names, baseline_index, args.output)
 

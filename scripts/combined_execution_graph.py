@@ -10,8 +10,8 @@ def parse_arguments():
     parser.add_argument("input_folder", type=str, help="Path to the folder containing benchmark outputs.")
     parser.add_argument("-o","--output_folder", type=str, help="Path to the folder where the output graph will be saved.")
     parser.add_argument("-hl", "--horizontal-line", type=float, help="Optional horizontal line at given y-value")
-
     return parser.parse_args()
+
 def main():
     parser = parse_arguments()
     if not os.path.exists(parser.input_folder):
@@ -30,9 +30,6 @@ def main():
     for root, subdirs, files in os.walk(input_folder):
         print(root)
         benches = os.listdir(root)
-
-
-
 
         for bench in benches:
             if not ("sycl" in bench or "omp" in bench):
@@ -69,7 +66,28 @@ def main():
     fig, ax = plt.subplots()
     keys = exec_dict.keys()
     values = exec_dict.values()
-    s = sorted(zip(keys, values), key = lambda y: tuple(reversed(y[0].split("-"))))
+    
+    # Rename keys if set according to "mitigation_strategy-max_threads-framework-suffix"
+    formatted_keys = list()
+    for key in keys:
+        match key[:4]:
+            case "0-8-":
+                formatted_keys.append("Roam-"+key.split("-")[-1])
+            case "0-7-":
+                formatted_keys.append("RoamHK-"+key.split("-")[-1])
+            case "1-8-":
+                formatted_keys.append("TP-"+key.split("-")[-1])
+            case "2-8-":
+                formatted_keys.append("TPHK-"+key.split("-")[-1])
+            case "2-7-":
+                formatted_keys.append("TPHKx2-"+key.split("-")[-1])
+            case "0-6-":
+                formatted_keys.append("RoamHKx2-"+key.split("-")[-1])
+            case _:
+                formatted_keys.append(key)
+                #break
+            
+    s = sorted(zip(formatted_keys, values), key = lambda y: tuple(reversed(y[0].split("-"))))
 
     # Change "-NSMT-" to something else if needed
     keys = [i[0].replace("-NSMT-", "-") for i in s]

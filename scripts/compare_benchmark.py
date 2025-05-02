@@ -204,10 +204,11 @@ def main():
 
     all_stats = []
     all_names = []
-
+    print(stats_files)
     # Load benchmark stats from root directories
     for stats_file in stats_files:
         name = os.path.relpath(stats_file, start=os.path.commonpath(args.root_dirs))
+        #print(name)
         all_names.append(name)
         stats = parse_stats_file(stats_file)
         all_stats.append(stats)

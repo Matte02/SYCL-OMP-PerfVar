@@ -88,6 +88,11 @@ def main():
     average_dict = compute_average_trace(raw_trace_files, trace_path, args.workload_name, args.combine_threads)
     print(f"Average dict created")
 
+    if DEBUG == True:
+        json_string = json.dumps(average_dict, indent=4) 
+        with open("Temp_Avg_dict.json", "w") as f:
+            f.write(json_string)
+
     # Clean the worst trace by removing average noise
     worst_trace = clean_worst_trace(worst_trace, average_dict)
     print(f"Cleaned worst case")
@@ -104,6 +109,17 @@ def main():
     # Merge consecutive noise events into one continuous event using the provided merge threshold
     combine_consecutive_noises(noise_dict, merge_threshold=args.merge_threshold)
     print(f"Combined overlapping noise")
+    
+    if DEBUG == True:
+        fig, ax = plt.subplots()
+        for cpu, timings in noise_dict.items():
+            for timing in timings:
+                if timing[2] != 0 :
+                    ax.barh(cpu, width=timing[1], left=timing[0], color='r')
+
+                else:
+                    ax.barh(cpu, width=timing[1], left=timing[0], color='b')
+        plt.show()
 
     # Write the processed noise data to the specified output JSON file
     json_string = json.dumps(noise_dict, indent=4) 
@@ -134,7 +150,12 @@ def combine_consecutive_noises(noise_dict, merge_threshold=0):
                 next_start = start
                 next_duration = duration
                 max_prio = priority
-            else:
+                if priority < 0:
+                    combined_noises.append((next_start, next_duration, max_prio))
+                    next_start = -1
+                    next_duration = -1
+                    max_prio = 99
+            elif priority >= 0:
                 # If the current noise is close to the previous one, combine them
                 if next_start + next_duration + merge_threshold >= start:
                     next_duration += duration + max(start - (next_start + next_duration), 0)
@@ -148,10 +169,24 @@ def combine_consecutive_noises(noise_dict, merge_threshold=0):
                     next_start = start
                     next_duration = duration
                     max_prio = priority
+            else:
+                excess_dur = (next_start + next_duration) - start
+                if excess_dur >= 0:
+                    combined_noises.append((next_start, next_duration - excess_dur, max_prio))
+                    next_start = start+duration
+                    next_duration = excess_dur
 
+                else:
+                    combined_noises.append((next_start, next_duration, max_prio))
+                    next_start = -1
+                    next_duration = -1
+                    max_prio = 99
 
-        # Add the last combined noise event
-        combined_noises.append((next_start, next_duration, max_prio))
+                combined_noises.append((start, duration, priority))
+
+        # Add the final combined noise event
+        if next_start != -1:
+            combined_noises.append((next_start, next_duration, max_prio))
         noise_dict[cpu] = combined_noises
 
     return noise_dict

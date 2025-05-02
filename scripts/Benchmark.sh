@@ -258,11 +258,12 @@ for bench in ${benches[@]}; do
             # Enable tracing if specified
             if [ $TRACE -eq 1 ]; then
                 touch "$logpath/$curbench-$TRACECOUNT-$SYSTEM.trace"
+                #Wipe trace buffer
                 echo > "$OSNOISEPATH/trace"
                 sleep 1  # Allow tracer warmup
             fi
 
-            echo $i
+            echo "$logpath $i "
             # Run the benchmark
             time ./"$binary" $params > "$logpath/$curbench-$TRACECOUNT-$SYSTEM.benchout" 2>&1 &
             benchmark_pid=$!  # Save the PID of the benchmark process
